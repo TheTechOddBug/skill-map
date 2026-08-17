@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Rewrites are a tax on the same mistake</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Rewrites are a tax on the same mistake</h1>
+
+  <p>The old system is slow and nobody trusts it, so the team proposes a rewrite. Six months later the new system ships, and it has the same shape as the old one: the same god object, the same tangled boundaries, just written in a newer language. The rewrite did not fix the design. It only paid to recreate it.</p>
+
+  <h2>A rewrite inherits the mental model, not just the code</h2>
+  <p>Nobody sits down and copies the old design on purpose. But the people writing the new system learned how the domain works from the old system. Every shortcut, every leaky abstraction, every "that's just how billing works" gets carried over as unstated knowledge, because nobody wrote down that it was a flaw instead of a fact.</p>
+
+  <h2>Big-bang rewrites hide the real problem until the end</h2>
+  <p>A full rewrite defers the hard question, does the new design actually work, until the very end, when both systems have to be compared at once and switching costs are highest. By then the pressure to ship overrides the pressure to get the design right, so the same compromises get made again, just with fresh syntax.</p>
+
+  <h2>Extract the seam before you touch anything</h2>
+  <p>Instead of rewriting the whole thing, find the boundary the old design got wrong, the module that should not know about the database, the function doing three jobs, and give it a clean interface first. That seam is where the old flaw lived. Naming it and isolating it forces the decision the original design skipped.</p>
+
+  <h2>Replace behind the seam, keep the lights on</h2>
+  <p>Once the seam exists, replace what is behind it piece by piece, strangler-style, while the old system keeps running for everything not yet moved. Each piece ships small enough to review honestly. There is no big-bang cutover, no six-month bet, and the design gets to change incrementally instead of getting copied wholesale under deadline pressure.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

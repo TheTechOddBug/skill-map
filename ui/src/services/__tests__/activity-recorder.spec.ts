@@ -17,6 +17,7 @@ import {
   PERSISTED_CHAR_BUDGET,
   PERSISTED_EVENT_CAP,
 } from '../activity-recorder';
+import { DATA_SOURCE } from '../data-source/data-source.port';
 import { LivePreferencesService } from '../live-preferences';
 import { WsEventStreamService } from '../ws-event-stream';
 
@@ -45,10 +46,14 @@ function spawnFrame(tMs: number): IWsEvent {
   } as IWsEvent;
 }
 
-function bootstrap(activityEnabled = true) {
+function bootstrap(activityEnabled = true, recording = true, serverRecording = false) {
   TestBed.resetTestingModule();
   const events$ = new Subject<IWsEvent>();
   const enabled = signal(activityEnabled);
+  const setSessionRecording = vi.fn().mockResolvedValue(true);
+  const getSessionJournal = vi
+    .fn()
+    .mockResolvedValue({ sessions: [], recording: serverRecording });
   TestBed.configureTestingModule({
     providers: [
       { provide: WsEventStreamService, useValue: { events$ } as unknown as WsEventStreamService },
@@ -56,10 +61,16 @@ function bootstrap(activityEnabled = true) {
         provide: LivePreferencesService,
         useValue: { activityEnabled: enabled.asReadonly() } as unknown as LivePreferencesService,
       },
+      { provide: DATA_SOURCE, useValue: { getSessionJournal, setSessionRecording } },
     ],
   });
   const service = TestBed.inject(ActivityRecorderService);
-  return { service, events$, enabled };
+  // Capture is a manual gate since 2026-08-16 (the Sessions rail's
+  // record control): almost every case exercises the capturing path, so
+  // the harness arms it by default. `start()` no-ops while Real Time is
+  // off, which is exactly what the gate cases assert.
+  if (recording) service.start();
+  return { service, events$, enabled, setSessionRecording, getSessionJournal };
 }
 
 async function flushed(): Promise<void> {
@@ -113,16 +124,67 @@ describe('ActivityRecorderService', () => {
     expect(service.events()[0]?.type).toBe('node.activity');
   });
 
-  it('drops frames while Real Time is off', async () => {
+  it('drops frames while Real Time is off (start() cannot even arm)', async () => {
     const { service, events$, enabled } = bootstrap(false);
     events$.next(activityFrame(T0 + 1));
     await flushed();
     expect(service.size()).toBe(0);
+    expect(service.recording()).toBe(false);
 
     enabled.set(true);
+    service.start();
     events$.next(activityFrame(T0 + 2));
     await flushed();
     expect(service.size()).toBe(1);
+  });
+
+  it('captures NOTHING unless the operator pressed record (manual gate, never automatic)', async () => {
+    const { service, events$ } = bootstrap(true, false);
+    events$.next(activityFrame(T0 + 1));
+    await flushed();
+    expect(service.size()).toBe(0);
+    expect(localStorage.getItem(ACTIVITY_RECORDING_KEY)).toBeNull();
+
+    service.start();
+    events$.next(activityFrame(T0 + 2));
+    await flushed();
+    expect(service.size()).toBe(1);
+
+    service.stop();
+    events$.next(activityFrame(T0 + 3));
+    await flushed();
+    // The tape stays (ready to replay); only the capture stopped.
+    expect(service.size()).toBe(1);
+  });
+
+  it('Real Time flipping off stops an in-flight recording (server disengaged too)', async () => {
+    const { service, enabled, setSessionRecording } = bootstrap();
+    expect(service.recording()).toBe(true);
+    enabled.set(false);
+    TestBed.tick();
+    expect(service.recording()).toBe(false);
+    expect(setSessionRecording).toHaveBeenLastCalledWith(false);
+  });
+
+  it('start/stop mirror the gesture to the SERVER journal (capture on both memories)', () => {
+    const { service, setSessionRecording } = bootstrap(true, false);
+    service.start();
+    expect(setSessionRecording).toHaveBeenLastCalledWith(true);
+    service.stop();
+    expect(setSessionRecording).toHaveBeenLastCalledWith(false);
+  });
+
+  it('boot probe resumes local capture when the server was recording across a reload', async () => {
+    const { service } = bootstrap(true, false, true);
+    await vi.advanceTimersByTimeAsync(1); // settle the probe promise
+    expect(service.recording()).toBe(true);
+  });
+
+  it('boot probe STOPS an orphan server recording this client cannot honour (Real Time off)', async () => {
+    const { service, setSessionRecording } = bootstrap(false, false, true);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(service.recording()).toBe(false);
+    expect(setSessionRecording).toHaveBeenLastCalledWith(false);
   });
 
   it('caps the tape oldest-first and counts the drops', async () => {

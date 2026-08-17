@@ -68,6 +68,7 @@ Cada extensión analítica se declara `deterministic` (corre dentro de `sm scan`
 ## Filosofía
 
 - **Diseño visible**: un harness se diseña, no se acumula; skill-map hace tu diseño verificable a medida que crece.
+- **Evaluación de diseño, no observabilidad**: el mapa en vivo, las sesiones y el replay responden "¿está funcionando mi diseño?" (qué links declarados se disparan de verdad, qué se ejecutó y por qué), nunca "¿está sano mi sistema?". Donde la realidad diverge del diseño, la respuesta es un finding que propone una edición, no un panel de métricas.
 - **CLI-first**: todo lo que hace la UI es alcanzable desde la línea de comandos.
 - **Determinístico por defecto**: el LLM es opcional; el producto funciona offline.
 - **Un estándar público**: la spec en [`spec/`](./spec/README.md) alcanza para construir una implementación alternativa.

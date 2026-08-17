@@ -58,9 +58,16 @@ export function mcpServerId(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
+/**
+ * The MCP node-path scheme prefix. Exported for consumers that only need
+ * to RECOGNISE an `mcp://` path (the session-journal fold, UI mirrors);
+ * building one still goes through `mcpNodePath` below.
+ */
+export const MCP_NODE_PREFIX = 'mcp://';
+
 /** The synthetic `path` of an MCP server node. The ONLY place the scheme is built. */
 export function mcpNodePath(server: string): string {
-  return `mcp://${mcpServerId(server)}`;
+  return `${MCP_NODE_PREFIX}${mcpServerId(server)}`;
 }
 
 /**

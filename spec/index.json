@@ -85,6 +85,10 @@
         "path": "schemas/serve-info.schema.json"
       },
       {
+        "id": "session-recording",
+        "path": "schemas/session-recording.schema.json"
+      },
+      {
         "id": "sidecar",
         "path": "schemas/sidecar.schema.json"
       },
@@ -472,14 +476,14 @@
       }
     ]
   },
-  "specPackageVersion": "1.10.1",
+  "specPackageVersion": "1.11.0",
   "integrity": {
     "algorithm": "sha256",
     "files": {
-      "CHANGELOG.md": "5997ac030ccbdaba2cd44f77c58bf464824025f4e900c7fff213935edb8ab31d",
+      "CHANGELOG.md": "17a255d2fbe31ba19db59f20de896d4e537582f1ade37f9b7ee9607b556851a0",
       "README.md": "35ac6cc3ce8379c5087f739a528d3b80a140aef5cdeeba9c49b59c5dd5df4c54",
-      "architecture.md": "f461e335f249e11de28cfa9ebead9d5aaef4763fdcdff9f42657635e164267f9",
-      "cli-contract.md": "126ec11ce5413ba4b407e5f3209125a4eefe64bc90968ae479fd1cd75c5d40b2",
+      "architecture.md": "20cb9a20ef6218bcbbde99fd81011f1ed216545e5c2cd085c508d6bcbc6144a5",
+      "cli-contract.md": "f95b5e4e8e1ca7a4c9b9e77443c3785a24a1ca54b3a2807e10f5c0ab53dcc801",
       "conformance/README.md": "1cf7a020d4a7517e9f2b5fa2e6912be812322dfffa388de5eb47ef44d9277e8f",
       "conformance/cases/backtick-path-extraction.json": "4112b5724156c4d6ad5cf90a762e43741d25d68735f91d453ac580a77b3764da",
       "conformance/cases/bump-report-schema.json": "f9f1b9f1143e5750bea045001aff60d0f5f6b15e41597d9bd983c4159540fb22",
@@ -532,7 +536,7 @@
       "conformance/cases/view-action-button.json": "bb1377a737117c3d274a4f5a216adb1b94dae534658fa8dcc784c39fcfb15e1b",
       "conformance/cases/view-contribution-payloads.json": "ca02992c269e7c1724df024b138abf0c97f50f003c300c404cb6034743ad7ca7",
       "conformance/cases/view-slots-all.json": "0e3294ada16eb6695760e3067cf05e7ea233720f83b26531432ca95cc24ef4f9",
-      "conformance/coverage.md": "d6cffd4aa8b205e7fcb1a0813d78cb7722c418851f7f33961277ca45238213e2",
+      "conformance/coverage.md": "e73036e8d74ce90a846ba3a966812941aee2990f01cbbb74dd61c49c9234a5f1",
       "conformance/fixtures/backtick-path/docs/target.md": "a09ae2cb4c96358a2e0692215f172b0f8c48028b6b123e4e83424b28302e644c",
       "conformance/fixtures/backtick-path/source.md": "217f78b12b3ff47a938a5cc9c1ff7d6989d6a1db82bd1ddf3656787f31efb902",
       "conformance/fixtures/extension-enable-gate/.skill-map/plugins/gated/analyzers/boom/extension.json": "bc8a8a24a068fa4a03d096790fa52b8c3f8c7ecb1e7ac9d3fbe83ea0babafe6f",
@@ -641,7 +645,7 @@
       "plugin-kv-api.md": "a9fe61f8c00a689eabb806dadafa55bd275cd0226495a0ffc6d8475ce00b4487",
       "plugin-quickstart.md": "1903fa03303d75cd25cc16af3c2876d5eda6e1d9a694e8d3b794a67235e9afb8",
       "prompt-preamble.md": "592878ce0dc1c6811fbd24c7bd2c12a69555b28d92071723c321a70efa75e6f5",
-      "provider-activity.md": "62a3325195517563064b96261f791a6489d00e40d70632f9b7d25ecc76dd10c3",
+      "provider-activity.md": "3b341f607dedd0cce57186ae1334d9904fe6c532441e1588d42fe2543dd26b27",
       "schemas/annotations.schema.json": "2020dc285288653eb775bbc80c72a85191bd0411bc11bd752b487a1ad5ec6f98",
       "schemas/api/rest-envelope.schema.json": "f2a36211a925df38377c8a7bada8a6fad26ee97ccdb7066bc3d65ecf1c415559",
       "schemas/bump-report.schema.json": "dea9390aa706955e2a47f6254310943d96ceb74a2f51539be86f0d389e33fa86",
@@ -670,11 +674,12 @@
       "schemas/node.schema.json": "6f44a115367ef5a016b2ba0a56af1220bbf51aeef66addbc28f1f7afc2a22ef5",
       "schemas/plugins-doctor.schema.json": "a474cdc69bff60b57f25f60e871e54c672b2de924983eecb4167e21f4400c979",
       "schemas/plugins-registry.schema.json": "fcb2c911a5d746ec14c153afb5c3255d95322a4ddb1500a17f5b7353df9c0d63",
-      "schemas/project-config.schema.json": "36b89fddfa163dc8e3876ce57866757bc28f52d5c9848ed2d2fe8fc485c67fbd",
+      "schemas/project-config.schema.json": "47517c4d5e58b2e52cbd01d81d1dca381b3aeb9850e897a8a5f7848b1df1085e",
       "schemas/report-base-deterministic.schema.json": "a72f80f48e3e784ad2d6a632f07a59f28848bf49884ad401d625a4d65d9fb1dd",
       "schemas/report-base.schema.json": "991907323b51c3d55107d5f3e52a904fbdbe598d481bc81ff1d50cde36a2f35c",
       "schemas/scan-result.schema.json": "a383e3dc6efb8e9faf5fed22d3be9068d38128ac507264d8f38ea571008d1fcd",
       "schemas/serve-info.schema.json": "1ad0c0c0b63e4b401d67902f9acfef234eaaea61fe03e3b1e04d1b9cb44924ba",
+      "schemas/session-recording.schema.json": "aab3e9f2fa6eb3ec9d6adb0e5c5d849b5850318bbb7b0e25d6169b2cdba91c00",
       "schemas/sidecar.schema.json": "9e304a1f2677d275d8abb7d8b8cb61c35ea3d7d7d7c660d839422c34ce8cf1cb",
       "schemas/signal.schema.json": "a68d6eb24db556dbe260dae2c2643ad8ee9d827fd97ff1f11afaad4208c0c7ec",
       "schemas/skill-actions/report.schema.json": "c2678054f01f91eee08f82965eae837e4d115b7a5e240ae0316fbcd5e60036cd",
@@ -682,7 +687,7 @@
       "schemas/tags/markdown.schema.json": "9fcbaf7942da80705d5da4fb5e195bfd97ec53ca17914e69a80fd15c865d6723",
       "schemas/user-settings.schema.json": "d179e5109d1e452b8ef0b52af5ef122117fbe6390f8fcb70ecea449d266cfb5c",
       "schemas/view-slots.schema.json": "2a3a39a3f8a5e0db51a4cb3a5e0e3589230e5a9b22b4440f331470c89369af77",
-      "telemetry.md": "e1b48c856f592ebd932d1eb79e1da4d627c1728e35e724f6e5c62c21ed833e38",
+      "telemetry.md": "c5bc5ff66dc83f6c500fe68cb1c971d2ebf4a89f5ab827509c24433595060449",
       "versioning.md": "37aaceacd9fbc3f22b868115d68ac623a50b8ea10b51bcb1237bc4abd1d8880b",
       "view-slots.md": "0c92f8a8bf258b5416d55e900fc0ac7d520a8e3a4444b146aaf9e58d97320916"
     }

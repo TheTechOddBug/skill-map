@@ -51,6 +51,7 @@ const GITIGNORE_FILENAME = '.gitignore';
 export const SERVE_INFO_FILENAME = 'serve.json';
 const ACTIVITY_DIRNAME = 'activity';
 const ACTIVITY_BRIDGE_FILENAME = 'bridge.js';
+const SESSIONS_DIRNAME = 'sessions';
 
 /** The operations-log filename (`spec/cli-contract.md` §Operations log). */
 export const OPERATIONS_LOG_FILENAME = 'operations.log';
@@ -80,9 +81,12 @@ const DEFAULT_DB_REL = `${SKILL_MAP_DIR}/${DB_FILENAME}`;
  * sidecars (`-wal` / `-shm`, which the bare DB pattern does NOT match),
  * the serve discovery file, the operations log and its rotated
  * generation (`operations.log.1`, hence the glob), the DB backups
- * directory (pre-migrate snapshots + `sm db backup` output), and the
+ * directory (pre-migrate snapshots + `sm db backup` output), the
  * generated activity bridge (`sm activity install` regenerates it, so a
- * committed copy only goes stale against the CLI that wrote it).
+ * committed copy only goes stale against the CLI that wrote it), and
+ * the session-journal directory (per-session activity recordings,
+ * regenerable machine output per `spec/provider-activity.md` §Session
+ * journal).
  *
  * Everything NOT listed stays trackable, notably `settings.json` (the
  * committed team config layer) and `plugins/` (drop-in plugins a team
@@ -98,6 +102,7 @@ export const SCOPE_GITIGNORE_ENTRIES: readonly string[] = [
   `${OPERATIONS_LOG_FILENAME}*`,
   `${BACKUPS_DIRNAME}/`,
   `${ACTIVITY_DIRNAME}/`,
+  `${SESSIONS_DIRNAME}/`,
 ];
 
 /**
@@ -245,6 +250,19 @@ export function defaultActivityBridgePath(scopeRoot: string): string {
  * remove exactly the entries `install` added.
  */
 export const ACTIVITY_BRIDGE_REL = `${SKILL_MAP_DIR}/${ACTIVITY_DIRNAME}/${ACTIVITY_BRIDGE_FILENAME}`;
+
+/**
+ * Session-journal directory (`<scopeRoot>/.skill-map/sessions`), one JSON
+ * file per recorded runtime session (`spec/provider-activity.md` §Session
+ * journal, shape `spec/schemas/session-recording.schema.json`). Written by
+ * the serve process's activity journal (`src/server/activity-journal.ts`),
+ * read back by the scan-side fold (`kernel/session-journal`). Machine
+ * output (Storage rule, fifth home): gitignored via
+ * `SCOPE_GITIGNORE_ENTRIES`, regenerable, operator-deletable.
+ */
+export function defaultProjectSessionsDir(scopeRoot: string): string {
+  return join(scopeRoot, SKILL_MAP_DIR, SESSIONS_DIRNAME);
+}
 
 /**
  * Map-views directory (`<scopeRoot>/.skill-map/views`), one committed

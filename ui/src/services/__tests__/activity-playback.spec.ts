@@ -150,4 +150,34 @@ describe('ActivityPlaybackService', () => {
     vi.advanceTimersByTime(PLAYBACK_STEP_MS * 2);
     expect(service.cursor()).toBe(-1);
   });
+
+  it('enter with a scoped tape plays that slice, not the recorder', () => {
+    const { service } = bootstrap(TAPE);
+    const slice = TAPE.slice(0, 2);
+    service.enter(slice, 'Session 1');
+    expect(service.total()).toBe(2);
+    expect(service.scopeLabel()).toBe('Session 1');
+    vi.advanceTimersByTime(PLAYBACK_STEP_MS);
+    expect(service.state().executing.has(SKILL)).toBe(true);
+  });
+
+  it('exit clears the scope label; a plain enter never sets one', () => {
+    const { service } = bootstrap(TAPE);
+    service.enter(TAPE.slice(0, 1), 'Session 1');
+    service.exit();
+    expect(service.scopeLabel()).toBeNull();
+    service.enter();
+    expect(service.scopeLabel()).toBeNull();
+    expect(service.total()).toBe(3);
+  });
+
+  it('deleting the recording stands a SCOPED replay down too', () => {
+    const { service, events } = bootstrap(TAPE);
+    service.enter(TAPE.slice(0, 2), 'Session 1');
+    expect(service.active()).toBe(true);
+    events.set([]);
+    TestBed.tick();
+    expect(service.active()).toBe(false);
+    expect(service.scopeLabel()).toBeNull();
+  });
 });

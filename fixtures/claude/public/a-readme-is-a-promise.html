@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>A README is a promise</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>A README is a promise</h1>
+
+  <p>A README is not documentation for its own sake. It is a commitment to the reader: do this, and the project will behave like this. When the code changes and the README does not, the promise is broken.</p>
+
+  <h2>What the promise is</h2>
+  <p>A reader installs the tool, runs the command, or calls the function exactly as written. They trust the README over reading the source, because that is the point of writing it. Every sentence is a claim someone will act on.</p>
+
+  <h2>How it breaks</h2>
+  <p>Flags get renamed. Defaults change. A step gets removed from the setup but not from the doc. None of this looks dramatic in a diff, so it slips through review. The result is a reader who follows the instructions and hits an error the README never warned about.</p>
+
+  <h2>Keeping it honest</h2>
+  <p>Document only what you will maintain. A README that covers every edge case today and none of them next year is worse than a short one that stays accurate. When a section starts costing more to update than it is worth, cut it instead of letting it go stale.</p>
+
+  <h2>What belongs elsewhere</h2>
+  <p>Deep design rationale belongs in a design doc, not the README. A history of past changes belongs in a changelog, not the README. Mixing these in makes the README grow without anyone owning its accuracy. Keep it to what a reader needs right now to use the thing correctly.</p>
+
+  <h2>Why stale is worse than none</h2>
+  <p>No README forces a reader to check the source, so they trust nothing and verify everything. A stale README earns trust it no longer deserves. That trust is what causes the real damage: the reader stops checking, and the gap between the doc and the code becomes their bug.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

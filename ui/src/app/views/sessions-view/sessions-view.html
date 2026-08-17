@@ -1,0 +1,224 @@
+<section class="sessions sessions--rail" data-testid="sessions-view">
+  <!-- Record control (user decision 2026-08-16): recording is a
+       deliberate gesture from HERE, never ambient and never a toolbar
+       toggle. Shared component (Files mounts it stop-only above its
+       search). Always rendered, empty list included, or nothing could
+       ever be recorded. -->
+  <sm-session-record-control />
+  @if (recorder.size() === 0 && sessions().length === 0) {
+    <div class="sessions__empty" data-testid="sessions-empty-none">
+      <p>{{ texts.empty }}</p>
+      <p class="sessions__hint">{{ texts.emptyHint }}</p>
+    </div>
+  } @else {
+    @if (recorder.droppedCount() > 0) {
+      <p class="sessions__notice" data-testid="sessions-trimmed">{{ texts.trimmedNotice }}</p>
+    }
+    <ul class="sessions__list" role="list">
+      @for (session of pagedSessions(); track session.rootOwner) {
+        <li class="sessions__row" [attr.data-testid]="'sessions-row-' + session.ordinal">
+          <div class="sessions__row-main">
+            <!-- Inline glyph chevron (files-view row convention). -->
+            <button
+              type="button"
+              class="sessions__chevron"
+              [attr.aria-expanded]="isExpanded(session.rootOwner)"
+              [attr.aria-label]="
+                isExpanded(session.rootOwner)
+                  ? texts.collapse(sessionName(session))
+                  : texts.expand(sessionName(session))
+              "
+              [disabled]="session.agents.length === 0 && session.steps.length === 0"
+              (click)="toggle(session.rootOwner)"
+              [attr.data-testid]="'sessions-toggle-' + session.ordinal"
+            >
+              <i
+                class="pi"
+                [class.pi-chevron-right]="!isExpanded(session.rootOwner)"
+                [class.pi-chevron-down]="isExpanded(session.rootOwner)"
+                aria-hidden="true"
+              ></i>
+            </button>
+            <div class="sessions__meta">
+              <!-- Time first, then WHAT THE SESSION USED as the title
+                   (user call 2026-08-16: the touched names matter more
+                   than the identity); "Session N" + the counters demote
+                   to the subtitle. Same reading order as the step rows
+                   below. The tooltip carries the full name list for the
+                   rows the ellipsis truncates. -->
+              <span class="sessions__title">
+                <span class="sessions__time">{{ startTime(session.firstTMs) }}</span>
+                <span
+                  class="sessions__label"
+                  [pTooltip]="sessionTitle(session)"
+                  tooltipPosition="top"
+                  >{{ sessionTitle(session) }}</span
+                >
+              </span>
+              <!-- Subtitle: the runtime session id as a code chip (it
+                   matches the journal filename suffix on disk; full
+                   value in the tooltip) + the counters. No id reported:
+                   counters alone, no synthetic ordinal. -->
+              <span class="sessions__subtitle">
+                @if (session.sessionId; as id) {
+                  <code
+                    class="sessions__id"
+                    [pTooltip]="id"
+                    tooltipPosition="bottom"
+                    [attr.data-testid]="'sessions-id-' + session.ordinal"
+                    >{{ shortId(id) }}</code
+                  >
+                }
+                <span class="sessions__stats">{{ sessionStats(session) }}</span>
+              </span>
+            </div>
+            <p-button
+              icon="pi pi-play"
+              [ariaLabel]="texts.play"
+              [pTooltip]="playTooltip(session, texts.playTooltip)"
+              severity="secondary"
+              [text]="true"
+              [rounded]="true"
+              size="small"
+              [disabled]="!playAvailable() || replayBlocked(session)"
+              (onClick)="play(session)"
+              [attr.data-testid]="'sessions-play-' + session.ordinal"
+            />
+          </div>
+          @if (isExpanded(session.rootOwner)) {
+            <!-- The MAIN context's own steps, before its spawned agents. -->
+            @if (session.steps.length > 0) {
+              <ng-container
+                [ngTemplateOutlet]="stepsTpl"
+                [ngTemplateOutletContext]="{ steps: session.steps, session }"
+              />
+            }
+            @if (session.agents.length > 0) {
+              <ul class="sessions__agents" role="list">
+                @for (agent of session.agents; track agent.spawnId) {
+                  <ng-container
+                    [ngTemplateOutlet]="agentTpl"
+                    [ngTemplateOutletContext]="{ agent, session, depth: 1 }"
+                  />
+                }
+              </ul>
+            }
+          }
+        </li>
+      }
+    </ul>
+    <!-- Pagination past one page, the Queue tab's exact dialect
+         (prev / next + the compact report, no page links). -->
+    @if (sessions().length > pageSize) {
+      <p-paginator
+        [first]="first()"
+        [rows]="pageSize"
+        [totalRecords]="sessions().length"
+        [showCurrentPageReport]="true"
+        [currentPageReportTemplate]="texts.pageReport"
+        [showPageLinks]="false"
+        [showFirstLastIcon]="false"
+        (onPageChange)="onPage($event)"
+        styleClass="sessions__paginator"
+        data-testid="sessions-paginator"
+      />
+    }
+  }
+</section>
+
+<!-- Recursive agent-tree node. Depth drives the indent only. -->
+<ng-template #agentTpl let-agent="agent" let-session="session" let-depth="depth">
+  <li class="sessions__agent" [style.--sessions-depth]="depth">
+    <div class="sessions__row-main">
+      <button
+        type="button"
+        class="sessions__chevron"
+        [attr.aria-expanded]="isExpanded(agent.spawnId)"
+        [attr.aria-label]="
+          isExpanded(agent.spawnId)
+            ? texts.collapse(agent.name ?? texts.unnamedAgent)
+            : texts.expand(agent.name ?? texts.unnamedAgent)
+        "
+        [disabled]="agent.children.length === 0 && agent.steps.length === 0"
+        (click)="toggle(agent.spawnId)"
+      >
+        <i
+          class="pi"
+          [class.pi-chevron-right]="!isExpanded(agent.spawnId)"
+          [class.pi-chevron-down]="isExpanded(agent.spawnId)"
+          aria-hidden="true"
+        ></i>
+      </button>
+      <div class="sessions__meta">
+        <span class="sessions__label" [attr.data-testid]="'sessions-agent-' + agent.spawnId"
+          >{{ agent.name ?? texts.unnamedAgent }}
+          <span class="sessions__agent-tag">{{ texts.subagentTag }}</span></span
+        >
+        <span class="sessions__stats">{{
+          texts.agentStats(agent.eventCount, agent.touchedPaths.size)
+        }}</span>
+      </div>
+      @if (replayable(agent)) {
+        <p-button
+          icon="pi pi-play"
+          [ariaLabel]="texts.play"
+          [pTooltip]="playTooltip(session, texts.playAgentTooltip)"
+          severity="secondary"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          [disabled]="!playAvailable() || replayBlocked(session)"
+          (onClick)="playAgent(session, agent)"
+          [attr.data-testid]="'sessions-play-agent-' + agent.spawnId"
+        />
+      }
+    </div>
+    @if (isExpanded(agent.spawnId)) {
+      <!-- The agent's own steps first, then whoever it spawned. -->
+      @if (agent.steps.length > 0) {
+        <ng-container
+          [ngTemplateOutlet]="stepsTpl"
+          [ngTemplateOutletContext]="{ steps: agent.steps, session }"
+        />
+      }
+      @if (agent.children.length > 0) {
+        <ul class="sessions__agents" role="list">
+          @for (child of agent.children; track child.spawnId) {
+            <ng-container
+              [ngTemplateOutlet]="agentTpl"
+              [ngTemplateOutletContext]="{ agent: child, session, depth: depth + 1 }"
+            />
+          }
+        </ul>
+      }
+    }
+  </li>
+</ng-template>
+
+<!-- Narrow internal-step rows (user request 2026-08-16): what the
+     hosting context actually ran, chronological, one thin line each.
+     Indented under the host row's chevron; the host li's own padding
+     carries the tree depth. Each row is a DEEP LINK into the replay
+     (plain button: p-button chrome would distort the dense list, the
+     chevron exception family), disabled while the lens is unavailable
+     like every Play control. -->
+<ng-template #stepsTpl let-steps="steps" let-session="session">
+  <ul class="sessions__steps" role="list">
+    @for (step of steps; track step.tMs + '|' + step.path + '|' + $index) {
+      <li class="sessions__step">
+        <button
+          type="button"
+          class="sessions__step-link"
+          [disabled]="!playAvailable() || replayBlocked(session)"
+          [pTooltip]="playTooltip(session, texts.stepTooltip)"
+          tooltipPosition="top"
+          (click)="playStep(session, step)"
+          data-testid="sessions-step"
+        >
+          <span class="sessions__step-time">{{ startTime(step.tMs) }}</span>
+          <span class="sessions__step-label">{{ stepLabel(step) }}</span>
+        </button>
+      </li>
+    }
+  </ul>
+</ng-template>

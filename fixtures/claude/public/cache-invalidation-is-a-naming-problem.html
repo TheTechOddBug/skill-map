@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Cache invalidation is a naming problem</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Cache invalidation is a naming problem</h1>
+
+  <p>The hard part is not deciding when to drop a cached value. It is knowing which value you cached.</p>
+
+  <h2>A key is a claim</h2>
+  <p>Every cache key says "this data depends on exactly these inputs". If the key omits an input, the cache lies. Most stale-data bugs are a missing field in the key, not a broken expiry.</p>
+
+  <h2>Put the inputs in the name</h2>
+  <p>A key like <code>user:42</code> hides the version, the locale, and the permission set. A key like <code>user:42:v3:en:admin</code> is ugly and honest. When an input changes, the key changes, and the old entry falls out on its own.</p>
+
+  <h2>Expiry is a guess</h2>
+  <p>A TTL says "I do not know when this goes stale, so I picked a number". That is fine as a safety net. It is not a correctness strategy. If the value must be fresh, derive the key from what makes it fresh.</p>
+
+  <h2>Deleting is the last resort</h2>
+  <p>Explicit invalidation means every writer must remember every reader. That coupling grows with the codebase and nobody updates it. Content-addressed keys need no writer to remember anything.</p>
+
+  <h2>What this buys you</h2>
+  <p>Rollbacks stop serving the wrong page. Two deploys can share a cache without fighting. And the bug report stops being "sometimes it is old", which is the report you can never reproduce.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

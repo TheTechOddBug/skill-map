@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Grep before you Google</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Grep before you Google</h1>
+
+  <p>Something breaks, and the fastest hand reaches for a browser tab. Slow down. The codebase in front of you already knows more about this bug than the internet does.</p>
+
+  <h2>The error message is already in your repo</h2>
+  <p>Most error strings are not generic. They come from a log line, a validation check, or a thrown exception someone on your team wrote. Grep for the exact text before you paste it into a search box. You will usually land on the line that produced it, not a thread about a different project with a similar name.</p>
+
+  <h2>Git blame tells you why, not just what</h2>
+  <p>Reading the code shows what it does. <code>git blame</code> and <code>git log</code> show why it does it: the commit message, the PR discussion, the ticket it closed. A stack overflow answer cannot tell you that this check was added on purpose to work around a bug in a dependency two versions ago.</p>
+
+  <h2>The web answers a generic question, your repo answers yours</h2>
+  <p>A search result answers "how does this error happen in general." Your repo can answer "how does this error happen here, with this config, this data, this version." Those are different questions, and only one of them is the one you actually have.</p>
+
+  <h2>When to actually go to the web</h2>
+  <p>Some bugs are not local at all. An unfamiliar library, a framework internals question, or an upstream bug report are all reasons to search outside your codebase. The rule is not "never Google." It is "check what you already own before you go looking for what someone else owns."</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

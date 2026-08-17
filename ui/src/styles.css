@@ -205,6 +205,13 @@
      past. Deep amber, white text clears WCAG AA. */
   --sm-replay-c: #b45309;
 
+  /* Saturated companion for replay-tinted TEXT and glyphs on content
+     surfaces (the record control's Stop replay face + dot): the deep
+     base above is a FILL truth (white text on it), and used as a font
+     color it reads muddy next to the broadcast red (user call
+     2026-08-16). Same luminance band as --sm-live-c. */
+  --sm-replay-c-bright: #f59e0b;
+
   /* Change spark (a node's file changed on disk, NodeSparkService).
      Deliberately ONE hue, the theme's predominant color, so the flash
      reads as "external update" and never as the multi-hue executing

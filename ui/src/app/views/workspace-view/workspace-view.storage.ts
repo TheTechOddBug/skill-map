@@ -10,8 +10,8 @@ const RAIL_WIDTH_KEY = 'sm.workspace.rail-width';
 const RAIL_COLLAPSED_KEY = 'sm.workspace.rail-collapsed';
 const RAIL_SECTION_KEY = 'sm.workspace.rail-section';
 
-/** Which panel the rail shows: the files navigator or the job queue. */
-export type TWorkspaceSection = 'files' | 'queue';
+/** Which panel the rail shows: files navigator, job queue, or sessions. */
+export type TWorkspaceSection = 'files' | 'queue' | 'sessions';
 
 export function readStoredRailWidth(): number | null {
   let raw: string | null = null;
@@ -70,7 +70,7 @@ export function readStoredActiveSection(): TWorkspaceSection | null {
   } catch {
     return null;
   }
-  return raw === 'files' || raw === 'queue' ? raw : null;
+  return raw === 'files' || raw === 'queue' || raw === 'sessions' ? raw : null;
 }
 
 export function writeStoredActiveSection(section: TWorkspaceSection): void {

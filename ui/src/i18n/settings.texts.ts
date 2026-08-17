@@ -175,11 +175,16 @@ export const SETTINGS_TEXTS = {
         label: 'Session recording',
         description:
           'The live lens keeps what your runtime executed in this browser so you ' +
-          'can replay it later. It stays until you delete it.',
+          'can replay it later, and recorded sessions persist as files in the ' +
+          'project. Both stay until you delete them.',
         empty: 'Nothing recorded yet.',
-        /** `1,240 events, 380 KB stored`. */
-        summary: (events: string, size: string): string =>
-          `${events} events, ${size} stored`,
+        /** Tape half: `1,240 events, 380 KB in this browser`. */
+        tape: (events: string, size: string): string =>
+          `${events} events, ${size} in this browser`,
+        /** Journal half: `21 session files in the project`. */
+        journal: (sessions: number): string =>
+          `${sessions} session file${sessions === 1 ? '' : 's'} in the project`,
+        separator: ' · ',
         delete: 'Delete recording',
       },
     },

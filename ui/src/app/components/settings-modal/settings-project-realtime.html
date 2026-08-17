@@ -101,8 +101,12 @@
     severity="secondary"
     [outlined]="true"
     size="small"
-    [disabled]="recordedCount() === 0"
+    [disabled]="recordedCount() === 0 && journalSessions() === 0"
     (onClick)="onDeleteRecording()"
     data-testid="settings-project-recording-delete"
   />
 </div>
+<!-- Delete-recording confirm (shared copy with the transport's trash):
+     one gesture erases tape + project journal, the warning names the
+     analyzer-evidence cost. -->
+<p-confirmdialog />

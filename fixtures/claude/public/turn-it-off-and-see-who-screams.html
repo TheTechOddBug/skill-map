@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Turn it off and see who screams</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Turn it off and see who screams</h1>
+
+  <p>Nobody can tell you with confidence whether that endpoint, that cron job, or that config flag is still used. Reading the code will not answer it either, because usage lives in traffic and habits, not in source files. The only reliable way to find out is to disable the thing behind a switch that is loud and reversible, then wait.</p>
+
+  <h2>Code reading proves the wrong thing</h2>
+  <p>Grepping for callers tells you whether something is reachable, not whether anyone reaches it. A route can have zero callers in your repo and still be hit by an external partner, an old mobile build, or a script someone wrote three years ago and forgot about. Static analysis answers "can this run", never "does this run, and does someone depend on the result".</p>
+
+  <h2>Make the switch loud</h2>
+  <p>Turning something off silently is how you lose the signal. Log every call that would have hit the disabled path, with enough detail to trace it back to a caller. Emit a metric. Send an alert on the first hit, not the hundredth. The goal is not to break things quietly, it is to make the person who still depends on this feature notice within minutes, not weeks.</p>
+
+  <h2>Make it reversible</h2>
+  <p>A flag you can flip back in seconds is a cheap experiment. A deploy you have to roll back is a real outage. Gate the change behind a config value, a feature flag, or an environment variable, not a deleted code path. If someone screams, you flip the switch back and you have your answer without anyone losing data or a weekend.</p>
+
+  <h2>Silence is data too</h2>
+  <p>If nothing screams after a reasonable window, that absence is evidence, not proof. Give it enough time to cover weekly and monthly jobs, billing cycles, and quarterly reports before you trust the silence. Then, and only then, delete the code. The switch was never the goal. It was the cheapest way to ask reality a question the codebase could not answer.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

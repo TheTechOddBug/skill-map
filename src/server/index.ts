@@ -72,7 +72,9 @@ import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
 import { readConfigValue } from '../core/config/helper.js';
+import { defaultProjectSessionsDir } from '../core/paths/db-path.js';
 import { ActivityConversationStore } from './activity-conversations.js';
+import { ActivityJournalService } from './activity-journal.js';
 import { ActivityOwnerIndex } from './activity-owner-index.js';
 import { ActivityProbeStore } from './activity-probe.js';
 import { ActivityStatsService } from './activity-stats.js';
@@ -215,6 +217,13 @@ export async function createServer(
         default: false,
       }) ?? false,
   });
+  // Session journal (`spec/provider-activity.md` §Session journal): the one
+  // durable activity output, per-session content-free recordings under
+  // `.skill-map/sessions/`. Gate read ONCE at boot like the conversations
+  // gate above; default ON (content-free, so a normal team preference, not
+  // consent-shaped). Same custody posture as the stores above: threaded to
+  // the ingest route as an explicit extra dep, never on `IRouteDeps`.
+  const activityJournal = buildActivityJournal(runtimeContext);
   const { pluginRuntime, kindRegistry, providerRegistry, providers } =
     await assemblePluginRuntime(options, runtimeContext);
   // Skill-action catalog (`spec/skill-actions.md` §Discovery), assembled
@@ -256,6 +265,7 @@ export async function createServer(
     activityOwners,
     activityProbes,
     activityConversations,
+    activityJournal,
     agentPresence,
     broadcaster,
     runtimeContext,
@@ -345,6 +355,10 @@ export async function createServer(
         // already logged inside stop()
       }
     }
+    // Journal shutdown flush: finalize every still-open session (endedAt
+    // stamp + operations-log line) before the process goes away.
+    // Fire-and-forget inside, so it can never delay or fail the close.
+    activityJournal.shutdown();
     // MCP teardown BEFORE the broadcaster shuts down: unregister the
     // realtime sink and drain every live MCP session (closing its SSE
     // stream) so no notification races the broadcaster's client drain.
@@ -392,6 +406,25 @@ function buildMcpIntegration(
     // runtime is threaded so submit / record can build a fresh action
     // runtime.
     pluginRuntime,
+  });
+}
+
+/**
+ * Assemble the session journal from the boot-time config gate
+ * (`activity.journal.enabled`, default true) + the scope's sessions
+ * directory. Extracted from `createServer` alongside its siblings so
+ * the gate read stays a one-line thread without inflating the
+ * composition root's cyclomatic budget.
+ */
+function buildActivityJournal(runtimeContext: IRuntimeContext): ActivityJournalService {
+  return new ActivityJournalService({
+    enabled:
+      readConfigValue<boolean>('activity.journal.enabled', {
+        cwd: runtimeContext.cwd,
+        default: true,
+      }) ?? true,
+    sessionsDir: defaultProjectSessionsDir(runtimeContext.cwd),
+    cwd: runtimeContext.cwd,
   });
 }
 

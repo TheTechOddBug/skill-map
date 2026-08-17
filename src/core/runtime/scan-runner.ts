@@ -36,7 +36,12 @@ import { tx } from '../../kernel/util/tx.js';
 import { createStderrProgressEmitter } from './progress-emitter.js';
 import type { IPrinter } from './printer.js';
 import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
-import { resolveDbPath } from '../paths/db-path.js';
+import { defaultProjectSessionsDir, resolveDbPath } from '../paths/db-path.js';
+import {
+  foldObservedActivity,
+  readSessionJournal,
+  type IObservedActivity,
+} from '../../kernel/session-journal/index.js';
 import { ensureScopeGitignore } from '../scope-gitignore.js';
 import { resolveScanRoots } from './scan-roots.js';
 import { walkReferencePaths } from './reference-paths-walker.js';
@@ -310,6 +315,14 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
     emitReferenceWalkAdvisory(walk, opts);
   }
 
+  // Session-journal fold (spec/provider-activity.md §Session journal):
+  // read `.skill-map/sessions/*.json` (AJV-validated, off-shape skipped)
+  // and fold the observed relations + executions the design-vs-reality
+  // analyzers project. Absent directory = empty maps = options stay unset.
+  const observedActivity = foldObservedActivity(
+    readSessionJournal(defaultProjectSessionsDir(ctx.cwd)),
+  );
+
   const loadPrior = makePriorLoader(opts.noBuiltIns, strict);
   const lens = await resolveActiveLens(
     opts,
@@ -328,6 +341,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
     strict,
     extensions,
     referenceablePaths,
+    observedActivity,
     ctx.cwd,
     activeProvider,
     cfg.scan.maxScan,
@@ -639,6 +653,7 @@ function makeScanRunner(
   strict: boolean,
   extensions: ReturnType<typeof composeScanExtensions>,
   referenceablePaths: ReadonlySet<string> | undefined,
+  observedActivity: IObservedActivity,
   scanCwd: string,
   activeProvider: string | null,
   scanCeiling: number,
@@ -658,6 +673,7 @@ function makeScanRunner(
       strict,
       extensions,
       referenceablePaths,
+      observedActivity,
       cwd: scanCwd,
       prior,
       activeProvider,
@@ -680,6 +696,8 @@ interface IBuildRunScanOptionsArgs {
   strict: boolean;
   extensions: ReturnType<typeof composeScanExtensions>;
   referenceablePaths: ReadonlySet<string> | undefined;
+  /** Session-journal fold (empty maps when the journal holds nothing). */
+  observedActivity: IObservedActivity;
   cwd: string;
   prior: ScanResult | null;
   activeProvider: string | null;
@@ -758,6 +776,12 @@ function applyScopeRunScanOptions(
 ): void {
   if (args.referenceablePaths?.size) {
     runOptions.referenceablePaths = args.referenceablePaths;
+  }
+  if (args.observedActivity.relations.size > 0) {
+    runOptions.observedRelations = args.observedActivity.relations;
+  }
+  if (args.observedActivity.executions.byPath.size > 0) {
+    runOptions.observedExecutions = args.observedActivity.executions;
   }
   if (args.pluginStores?.size) runOptions.pluginStores = args.pluginStores;
 }

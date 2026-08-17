@@ -95,6 +95,12 @@ export const claudeActivity: IProviderActivityAdapter = {
       // Main-context turn boundary: sweeps sync spawn relations whose
       // completion hook never fired (interrupted / failed Agent calls).
       { event: 'Stop', matcher: '*' },
+      // Whole-session boundary (2026-08-16): the exact finalization
+      // signal the session journal was designed to upgrade onto.
+      // `SessionStart` stays deliberately unwired: no session-start
+      // signal form exists in the wire vocabulary, and the journal
+      // derives identity + start time from the first frame anyway.
+      { event: 'SessionEnd', matcher: '*' },
     ],
   },
 
@@ -119,7 +125,25 @@ const EVENT_MAPPERS = new Map<string, (event: Record<string, unknown>) => IActiv
   ['SubagentStart', (event) => mapSubagentBoundary(event, 'start')],
   ['SubagentStop', (event) => mapSubagentBoundary(event, 'end')],
   ['Stop', mapMainTurnEnd],
+  ['SessionEnd', mapSessionEnd],
 ]);
+
+/**
+ * Whole-session boundary. Claude fires `SessionEnd` when the session
+ * terminates (clear / logout / prompt-input exit / other reasons); it
+ * maps to the node-less SESSION-RELEASE form keyed by `session_id`
+ * (the codex main-`Stop` precedent), releasing every owner grouped
+ * under the session and, above all, handing the server-side session
+ * journal its EXACT finalization boundary (spec §Session journal:
+ * finalize on a `sessionScope` end; the journal matches by the
+ * sessionId it derived from the `main:<session_id>` owner prefix). A
+ * payload without `session_id` disclaims: nothing to release by.
+ */
+function mapSessionEnd(event: Record<string, unknown>): IActivitySignal[] | null {
+  const session = nonEmptyString(event['session_id']);
+  if (!session) return null;
+  return [{ phase: 'end', sessionScope: true, session }];
+}
 
 /**
  * Main-context turn boundary. Claude fires `Stop` ONLY when the main

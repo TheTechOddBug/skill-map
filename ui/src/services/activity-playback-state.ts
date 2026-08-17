@@ -49,6 +49,7 @@ export type TPlaybackCaption =
       child?: string;
       childName?: string;
     }
+  | { kind: 'turn-end' }
   | { kind: 'other' };
 
 export interface IPlaybackState {
@@ -225,7 +226,9 @@ export function computePlaybackState(
       continue;
     }
     if (data.nodePath === undefined) {
-      caption = { kind: 'other' };
+      // Node-less custody frames still narrate (a blank ticker reads as
+      // a broken step): the turn boundary by name, the rest generically.
+      caption = data.turnEnd === true ? { kind: 'turn-end' } : { kind: 'other' };
       continue;
     }
 

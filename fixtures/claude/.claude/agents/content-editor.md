@@ -4,7 +4,7 @@ description: |
   Writes and edits the portfolio's pages. Reads a brief, follows the
   style guide, and emits the HTML into public/.
   Use when asked to create, rewrite, or update a page of the portfolio site.
-tools: [Read, Write]
+tools: [Read, Write, mcp__notion__notion-create-pages]
 model: sonnet
 ---
 
@@ -25,3 +25,4 @@ Rules: plain static HTML, no framework, no client JS, one page per file.
 If `public/style.css` is missing, still link `/style.css` (the style guide
 requires it) and say so in your report. Never inline styles instead.
 Every page follows the [style guide](../../docs/STYLE.md).
+

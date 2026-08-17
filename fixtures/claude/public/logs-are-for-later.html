@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Logs are for later</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Logs are for later</h1>
+
+  <p>A log line is not written for the person who wrote it today. It is written for whoever is debugging at 3am, six months from now, with no memory of this code.</p>
+
+  <h2>Log the inputs, not the outcome</h2>
+  <p>"Done" tells you nothing when it fails. Log the inputs that produced the decision, so the next reader can see why the code chose what it chose, not just that it finished.</p>
+
+  <h2>One event per line</h2>
+  <p>Keep one event per line. Grep only works if each line stands on its own. A line that mixes two events breaks the search for both.</p>
+
+  <h2>Levels are a promise</h2>
+  <p>A log level is a promise about who reads it. Error means someone gets paged. Info means someone might scroll past it. Break that promise and nobody trusts the levels again.</p>
+
+  <h2>Deleting a log is work too</h2>
+  <p>Deleting a noisy log is as valuable as adding a useful one. A line nobody reads just hides the lines that matter.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

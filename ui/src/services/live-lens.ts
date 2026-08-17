@@ -1,42 +1,32 @@
 /**
  * `LiveLensService`, domain state for the graph's "Live lens" mode: a
  * toggleable observational lens that narrows the map to the nodes the
- * AI runtime is executing RIGHT NOW plus the recently-executed ones
- * inside a configurable linger window.
+ * AI runtime is executing RIGHT NOW plus everything executed since the
+ * watermark (in practice: since the current recording started).
  *
  * Membership is a client-side WATERMARK, no server mutation involved:
  *
- *   liveSet = activePaths() ∪ { p : lastSeen(p) > max(now - windowMs, resetAt) }
+ *   liveSet = activePaths() ∪ { p : lastSeen(p) > resetAt }
  *   lastSeen(p) = max(stats().get(p)?.lastStartAt ?? 0, localLastActiveAt.get(p) ?? 0)
  *
- *   - `activePaths()` covers "executing right now" (a long-running
- *     agent's counted `lastStartAt` can predate any window, the union
- *     keeps it lit regardless).
+ *   - `activePaths()` covers "executing right now".
  *   - `stats().lastStartAt` is the reactive recency source that
  *     survives a page refresh (hydrated from `GET /api/activity/summary`).
  *   - `localLastActiveAt` stamps the moment a path LEAVES the active
- *     set, covering the linger after a sticky claim whose counted start
- *     is stale (sticky counts once per owner, so `lastStartAt` alone
- *     under-reports long agents).
- *   - `resetAt` is the reset watermark: `reset()` stamps "now" and the
- *     accumulated recency clears client-side. Currently-executing nodes
- *     remain by definition (they ride `activePaths`), and any
- *     re-execution re-adds a node.
+ *     set, covering claims whose counted start is stale (sticky counts
+ *     once per owner, so `lastStartAt` alone under-reports long agents).
+ *   - `resetAt` is the accumulation watermark: `reset()` stamps "now"
+ *     and the canvas starts fresh. The record gesture stamps it on
+ *     every start, so each recording narrates from its own moment;
+ *     currently-executing nodes remain by definition (they ride
+ *     `activePaths`).
  *
- * `windowMs` defaults to 5 minutes; `Number.POSITIVE_INFINITY` is the
- * "no limit" mode where everything executed since the last reset
- * accumulates. The value persists per browser
- * (`sm.live.lens-window`, same habit-not-project-state reasoning as
- * `sm.live.follow-activity`); `active` and `resetAt` are deliberately
- * session-only, auto-restoring a narrowed canvas on boot would read as
- * "my map is gone".
- *
- * Expiry reactivity: ONE self-rearming `setTimeout` scheduled at the
- * earliest upcoming linger expiry (the `NodeActivityService.publish`
- * discipline), armed only while the lens is active in timed mode. The
- * timer bumps a tick signal the membership computed reads; membership
- * publishes a new Set only when it actually changed, so OnPush
- * consumers stay quiet through no-op re-evaluations.
+ * The historical linger window (5 min / no-limit, `sm.live.lens-window`)
+ * was REMOVED on user decision 2026-08-16: the lens accumulates from
+ * the watermark until it exits, nothing ages out mid-session, so the
+ * expiry timer machinery went with it. `active` and `resetAt` are
+ * deliberately session-only, auto-restoring a narrowed canvas on boot
+ * would read as "my map is gone".
  *
  * Curation-independent data: the lens shows every executing node in
  * the corpus, including ones the curated map excludes, so the service
@@ -75,23 +65,14 @@ import { SKILL_MAP_MODE } from './data-source/runtime-mode';
 import { NodeActivityService } from './node-activity';
 import { NodeActivityStatsService } from './node-activity-stats';
 
-/** Default linger: alive while executing, plus 5 minutes after. */
-export const LIVE_LENS_DEFAULT_WINDOW_MS = 5 * 60_000;
-
-/** localStorage key for the per-browser window preference. */
-const LENS_WINDOW_KEY = 'sm.live.lens-window';
-
-/** Serialized form of the infinite window in localStorage. */
-const INFINITE_SENTINEL = 'infinite';
-
 /** Debounce collapsing a burst of membership growth into one fetch. */
 const LENS_FETCH_DEBOUNCE_MS = 300;
 
 /**
- * Prune horizon for the local departure stamps. Generously wider than
- * the default window so flipping 5 min -> infinite mid-session keeps
- * recent stamps; entries this old are covered by `stats().lastStartAt`
- * for every counted start anyway. Bounded by corpus size regardless.
+ * Prune horizon for the local departure stamps (memory hygiene only,
+ * never lens visibility: membership floors on the reset watermark).
+ * Entries this old are covered by `stats().lastStartAt` for every
+ * counted start anyway. Bounded by corpus size regardless.
  */
 const LOCAL_STAMP_PRUNE_MS = 60 * 60_000;
 
@@ -99,11 +80,10 @@ const EMPTY_SET: ReadonlySet<string> = new Set();
 
 /**
  * Safety cap on each observed-relation map. Relations are pruned only
- * by `reset()` (so flipping 5 min -> no-limit resurfaces older links,
- * "links that happened do not evaporate"), which leaves the maps
- * unbounded in a pathological session; past the cap the OLDEST entries
- * drop first. A few thousand distinct pairs is far beyond any real
- * project.
+ * by `reset()` ("links that happened do not evaporate"), which leaves
+ * the maps unbounded in a pathological session; past the cap the
+ * OLDEST entries drop first. A few thousand distinct pairs is far
+ * beyond any real project.
  */
 const OBSERVED_RELATIONS_CAP = 2000;
 
@@ -113,7 +93,7 @@ const OBSERVED_RELATIONS_CAP = 2000;
  * child node). Unlike the live overlays (60s invocation TTL, spawn
  * dies on its end frame), these persist under the lens watermark: they
  * stay rendered while both endpoints are lens members and their last
- * sighting is inside the window, and only `reset()` hard-clears them.
+ * sighting postdates the watermark, and only `reset()` hard-clears them.
  */
 export interface IObservedInvocation {
   /** Stable key, `<caller>>><target>` (the invocation-overlay idiom). */
@@ -180,16 +160,8 @@ export class LiveLensService {
   /** Lens on/off. Session-only by design (see module doc). */
   readonly active = this._active.asReadonly();
 
-  private readonly _windowMs = signal<number>(readStoredWindow());
-  /** Linger window in ms; `Number.POSITIVE_INFINITY` = accumulate until reset. */
-  readonly windowMs = this._windowMs.asReadonly();
-
   /** Reset watermark (unix ms). 0 = never reset this session. */
   private readonly _resetAt = signal(0);
-
-  /** Bumped by the expiry timer to force a membership re-evaluation. */
-  private readonly expiryTick = signal(0);
-  private expiryTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Unix-ms stamp per path of the moment it last LEFT the active set.
@@ -239,11 +211,10 @@ export class LiveLensService {
       // machinery downstream works unchanged because it only ever
       // reads this signal.
       if (this.playback.active()) return this.playback.state().members;
-      this.expiryTick();
       const active = this.nodeActivity.activePaths();
       const stats = this.activityStats.stats();
       const local = this._lastActiveAt();
-      const floor = this.floorAt(Date.now());
+      const floor = this._resetAt();
       const next = new Set(active);
       for (const [path, s] of stats) {
         if (s.lastStartAt > floor) next.add(path);
@@ -292,7 +263,13 @@ export class LiveLensService {
     }
     const links: ILinkApi[] = [];
     for (const link of this._linkCache().values()) {
-      if (membership.has(link.source) && membership.has(link.target)) links.push(link);
+      // Resolved endpoint, the graph-edge convention (`graph-layout.ts`
+      // keys edges on `resolvedTarget`): a trigger-style link keeps the
+      // authored `@foo` in `target`, which no membership path ever
+      // matches, so raw-target filtering dropped those edges entirely
+      // (user queue item 9, fixed 2026-08-16).
+      const target = link.resolvedTarget ?? link.target;
+      if (membership.has(link.source) && membership.has(target)) links.push(link);
     }
     return { ...meta, nodes, links, issues: [] };
   });
@@ -309,9 +286,8 @@ export class LiveLensService {
     // Replay: the fold's accumulated invocations (its members contain
     // both endpoints by construction, no extra filter needed).
     if (this.playback.active()) return this.playback.state().invocations;
-    this.expiryTick();
     const membership = this.membership();
-    const floor = this.floorAt(Date.now());
+    const floor = this._resetAt();
     const out: IObservedInvocation[] = [];
     for (const inv of this._observedInvocations().values()) {
       if (inv.lastSeenAt <= floor) continue;
@@ -329,9 +305,8 @@ export class LiveLensService {
   readonly observedSpawns = computed<readonly IObservedSpawn[]>(() => {
     if (!this._active()) return [];
     if (this.playback.active()) return this.playback.state().spawns;
-    this.expiryTick();
     const membership = this.membership();
-    const floor = this.floorAt(Date.now());
+    const floor = this._resetAt();
     const out: IObservedSpawn[] = [];
     for (const spawn of this._observedSpawns().values()) {
       if (spawn.lastSeenAt <= floor) continue;
@@ -354,9 +329,8 @@ export class LiveLensService {
       // links unknown to it); only pairs that match a rendered lens
       // edge ever dress anything, so no link filter is needed here.
       if (this.playback.active()) return this.playback.state().coLitPairs;
-      this.expiryTick();
       const membership = this.membership();
-      const floor = this.floorAt(Date.now());
+      const floor = this._resetAt();
       const out = new Set<string>();
       for (const [key, pair] of this._observedSpinePairs()) {
         if (pair.lastSeenAt <= floor) continue;
@@ -471,59 +445,21 @@ export class LiveLensService {
       let next: Map<string, { source: string; target: string; lastSeenAt: number }> | null =
         null;
       for (const link of links.values()) {
-        if (!active.has(link.source) || !active.has(link.target)) continue;
-        next = upsertObserved(next ?? current, `${link.source}|${link.target}`, {
+        // Resolved endpoint, matching how the graph keys its edges
+        // (`edge.to = resolvedTarget`) AND how `isEdgeExecuting` looks
+        // pairs up (`${edge.from}|${edge.to}`): keying on the raw
+        // `target` left every trigger-style link (`@foo` authored form)
+        // out of the executing-spine dressing (user queue item 9,
+        // fixed 2026-08-16).
+        const target = link.resolvedTarget ?? link.target;
+        if (!active.has(link.source) || !active.has(target)) continue;
+        next = upsertObserved(next ?? current, `${link.source}|${target}`, {
           source: link.source,
-          target: link.target,
+          target,
           lastSeenAt: now,
         });
       }
       if (next) this._observedSpinePairs.set(next);
-    });
-
-    // Single self-rearming expiry timer (timed mode only): wake at the
-    // earliest upcoming linger expiry, bump the tick, re-evaluate.
-    // Reading `expiryTick` re-runs this effect after each firing so the
-    // next-earliest deadline re-arms.
-    effect(() => {
-      this.expiryTick();
-      this.clearExpiryTimer();
-      if (!this._active()) return;
-      if (this.playback.active()) return; // virtual time, no wall-clock expiry
-      const windowMs = this._windowMs();
-      if (windowMs === Number.POSITIVE_INFINITY) return;
-      const active = this.nodeActivity.activePaths();
-      const stats = this.activityStats.stats();
-      const local = this._lastActiveAt();
-      const resetAt = this._resetAt();
-      const now = Date.now();
-      const floor = Math.max(now - windowMs, resetAt);
-      let earliest = Number.POSITIVE_INFINITY;
-      const consider = (path: string, lastSeen: number): void => {
-        if (active.has(path)) return; // no expiry while executing
-        if (lastSeen <= floor) return; // already outside the window
-        earliest = Math.min(earliest, lastSeen + windowMs);
-      };
-      for (const [path, s] of stats) consider(path, this.lastSeenOf(path, s.lastStartAt, local));
-      for (const [path, at] of local) {
-        if (!stats.has(path)) consider(path, at);
-      }
-      // Observed relations expire on their own clock too: a link can
-      // age out of the window while both its endpoints stay members
-      // (the nodes re-executed, the link did not recur).
-      const considerStamp = (lastSeen: number): void => {
-        if (lastSeen <= floor) return;
-        earliest = Math.min(earliest, lastSeen + windowMs);
-      };
-      for (const inv of this._observedInvocations().values()) considerStamp(inv.lastSeenAt);
-      for (const spawn of this._observedSpawns().values()) considerStamp(spawn.lastSeenAt);
-      for (const pair of this._observedSpinePairs().values()) considerStamp(pair.lastSeenAt);
-      if (earliest === Number.POSITIVE_INFINITY) return;
-      const delay = Math.max(earliest - now, 0) + 16;
-      this.expiryTimer = setTimeout(() => {
-        this.expiryTimer = null;
-        this.expiryTick.update((t) => t + 1);
-      }, delay);
     });
 
     // Membership growth fetch: any live path missing from the cache
@@ -547,7 +483,6 @@ export class LiveLensService {
     });
 
     this.destroyRef.onDestroy(() => {
-      this.clearExpiryTimer();
       if (this.fetchTimer !== null) clearTimeout(this.fetchTimer);
     });
   }
@@ -558,12 +493,6 @@ export class LiveLensService {
     this._active.set(value);
   }
 
-  setWindow(ms: number): void {
-    if (this._windowMs() === ms) return;
-    this._windowMs.set(ms);
-    writeStoredWindow(ms);
-  }
-
   /**
    * Clear the accumulated canvas: everything whose recency predates
    * this moment drops out. Client-only watermark, never mutates the
@@ -571,28 +500,6 @@ export class LiveLensService {
    */
   reset(): void {
     this._resetAt.set(Date.now());
-  }
-
-  private lastSeenOf(
-    path: string,
-    lastStartAt: number,
-    local: ReadonlyMap<string, number>,
-  ): number {
-    return Math.max(lastStartAt, local.get(path) ?? 0);
-  }
-
-  /** The watermark floor: recency at or below it is outside the lens. */
-  private floorAt(now: number): number {
-    const windowMs = this._windowMs();
-    const resetAt = this._resetAt();
-    return windowMs === Number.POSITIVE_INFINITY ? resetAt : Math.max(now - windowMs, resetAt);
-  }
-
-  private clearExpiryTimer(): void {
-    if (this.expiryTimer !== null) {
-      clearTimeout(this.expiryTimer);
-      this.expiryTimer = null;
-    }
   }
 
   /**
@@ -637,29 +544,5 @@ export class LiveLensService {
         });
       }
     }
-  }
-}
-
-function readStoredWindow(): number {
-  let raw: string | null = null;
-  try {
-    raw = localStorage.getItem(LENS_WINDOW_KEY);
-  } catch {
-    return LIVE_LENS_DEFAULT_WINDOW_MS;
-  }
-  if (raw === INFINITE_SENTINEL) return Number.POSITIVE_INFINITY;
-  const parsed = raw === null ? Number.NaN : Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : LIVE_LENS_DEFAULT_WINDOW_MS;
-}
-
-function writeStoredWindow(ms: number): void {
-  try {
-    localStorage.setItem(
-      LENS_WINDOW_KEY,
-      ms === Number.POSITIVE_INFINITY ? INFINITE_SENTINEL : String(ms),
-    );
-  } catch {
-    // Quota exceeded or storage blocked, swallow (matches the other
-    // preference services).
   }
 }

@@ -45,16 +45,20 @@
  * fans out one `scan.progress` per classified node and would flood the
  * tape with frames the playback cannot narrate.
  *
- * Gating mirrors the live glow: frames record only while Real Time
- * (`activityEnabled`) is on, so the tape never contains activity the
- * operator had switched off. Eagerly instantiated from an app
- * initializer (`app.config.ts`): `events$` does not replay to late
- * subscribers, a lazily-created recorder would silently start
- * mid-session.
+ * Gating (user decision 2026-08-16, the record-session rework): frames
+ * land on the tape only while the operator is RECORDING (`start()` /
+ * `stop()`, driven by the Sessions rail's record control) AND Real Time
+ * (`activityEnabled`) is on; flipping Real Time off stops an in-flight
+ * recording. Recording is a deliberate gesture now, never ambient: the
+ * historical always-on capture is gone with the toolbar lens cluster.
+ * Eagerly instantiated from an app initializer (`app.config.ts`):
+ * `events$` does not replay to late subscribers, a lazily-created
+ * recorder would silently start mid-session.
  */
 
-import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 
+import { DATA_SOURCE, type IDataSourcePort } from './data-source/data-source.port';
 import type { IWsAgentSpawnData, IWsNodeActivityData } from '../models/ws-event';
 import {
   isAgentSpawnEvent,
@@ -112,6 +116,7 @@ export type TRecordedEvent = IRecordedActivityEvent | IRecordedSpawnEvent;
 @Injectable({ providedIn: 'root' })
 export class ActivityRecorderService {
   private readonly prefs = inject(LivePreferencesService);
+  private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly destroyRef = inject(DestroyRef);
 
   /**
@@ -126,6 +131,25 @@ export class ActivityRecorderService {
   private readonly _droppedCount = signal(0);
   /** Frames the cap pushed off the head; non-zero = the tape is trimmed. */
   readonly droppedCount = this._droppedCount.asReadonly();
+
+  private readonly _recording = signal(false);
+  /**
+   * Manual capture gate (user decision 2026-08-16): the tape grows only
+   * between `start()` and `stop()`. Boot state OFF; a reload resumes
+   * capturing only when the SERVER is still recording (the boot probe
+   * below), so the two memories flip together.
+   */
+  readonly recording = this._recording.asReadonly();
+
+  private readonly _recordingSince = signal<number | null>(null);
+  /**
+   * Wall-clock watermark of the CURRENT recording window, null while
+   * not recording. Lets the Sessions tab tell the in-flight session
+   * (frames stamped after this moment) apart from finished ones, which
+   * is what gates its replay (user call 2026-08-17: watching the
+   * present and replaying it collide).
+   */
+  readonly recordingSince = this._recordingSince.asReadonly();
 
   readonly size = computed(() => this._events().length);
 
@@ -154,8 +178,39 @@ export class ActivityRecorderService {
     // recording is already made; only NEW frames honour that preference.
     this.hydrate();
 
+    // Real Time off mid-recording: stop rather than silently capturing
+    // nothing (the record control would keep claiming REC while every
+    // frame is dropped by the gate below). Routed through `stop()` so
+    // the SERVER journal disengages too.
+    effect(() => {
+      if (!this.prefs.activityEnabled() && this._recording()) this.stop();
+    });
+
+    // Boot sync (capture is a gesture that SURVIVES reloads, decision
+    // 2026-08-16): the server journal keeps recording across a page
+    // reload, so probe its state and resume the local tape capture; a
+    // server recording this client can no longer honour (Real Time off)
+    // is stopped instead of silently diverging. Best-effort: demo mode
+    // / a dead server leave the boot state off. Optional calls on
+    // purpose: this service boots EAGERLY app-wide, and a partial test
+    // double without the journal surface must read as "no journal",
+    // not crash the whole injector.
+    void this.dataSource
+      .getSessionJournal?.()
+      .then(({ recording }) => {
+        if (!recording) return;
+        if (this.prefs.activityEnabled()) {
+          this._recording.set(true);
+          this._recordingSince.set(Date.now());
+        } else {
+          void this.dataSource.setSessionRecording?.(false).catch(() => {});
+        }
+      })
+      .catch(() => {});
+
     const events = inject(WsEventStreamService);
     const sub = events.events$.subscribe((event) => {
+      if (!this._recording()) return;
       if (!this.prefs.activityEnabled()) return;
       if (isNodeActivityEvent(event)) {
         this.pending.push({ tMs: wsEventTimestampMs(event), type: 'node.activity', data: event.data });
@@ -176,6 +231,29 @@ export class ActivityRecorderService {
         this.persist();
       }
     });
+  }
+
+  /**
+   * Begin capturing (no-op while Real Time is off: nothing would
+   * arrive). Mirrors the gesture to the SERVER journal (capture is a
+   * gesture on BOTH memories, decision 2026-08-16), best-effort: demo
+   * mode or a dead server never block the local tape.
+   */
+  start(): void {
+    if (!this.prefs.activityEnabled()) return;
+    this._recording.set(true);
+    this._recordingSince.set(Date.now());
+    void this.dataSource.setSessionRecording?.(true).catch(() => {});
+  }
+
+  /**
+   * Stop capturing. The tape stays, ready to replay; the server
+   * finalizes its open journal sessions on the mirrored disengage.
+   */
+  stop(): void {
+    this._recording.set(false);
+    this._recordingSince.set(null);
+    void this.dataSource.setSessionRecording?.(false).catch(() => {});
   }
 
   /**
@@ -203,6 +281,22 @@ export class ActivityRecorderService {
     } catch {
       // Storage blocked: the in-memory tape is cleared either way.
     }
+  }
+
+  /**
+   * Remove a SPECIFIC set of frames from the tape (identity-based: the
+   * caller hands back frame objects it obtained from `events()`, e.g.
+   * `filterTapeForSession`'s output). The per-session eraser behind the
+   * replay trash (2026-08-17): drop ONE watched session from this
+   * browser without touching the rest of the tape, the journal files,
+   * or the drop accounting. The storage mirror follows on the standard
+   * debounce.
+   */
+  removeAll(frames: readonly TRecordedEvent[]): void {
+    if (frames.length === 0) return;
+    const drop = new Set(frames);
+    this._events.update((list) => list.filter((event) => !drop.has(event)));
+    this.schedulePersist();
   }
 
   /**

@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Retries hide the bug</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Retries hide the bug</h1>
+
+  <p>A retry is a bet that the same call will behave differently the second time. Sometimes that bet pays. Often it just buries the reason the first call failed.</p>
+
+  <h2>They turn a failure into a delay</h2>
+  <p>Three attempts with backoff do not remove the error, they move it. What used to be a fast, loud failure becomes a slow one that arrives after the timeout everybody stopped watching.</p>
+
+  <h2>They make the log lie</h2>
+  <p>If only the final attempt is recorded, the graph shows one failure where there were four. The system looks healthier than it is, right up to the day the retries stop working.</p>
+
+  <h2>Retry what is actually transient</h2>
+  <p>A dropped connection is transient. A 400 is not. A retry on a request the server already rejected on its merits is a loop with extra steps, and if the call is not idempotent it is a loop that writes twice.</p>
+
+  <h2>What to do instead</h2>
+  <p>Count every attempt, not just the last. Cap the total time, not just the number of tries. And before adding a retry, read one failure end to end: half the time the fix belongs in the call, not around it.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

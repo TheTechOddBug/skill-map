@@ -27,11 +27,17 @@ import {
   effect,
   inject,
   input,
+  signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ConfirmationService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
+import { SESSION_PURGE_TEXTS } from '../../../i18n/session-purge.texts';
+import { DATA_SOURCE, type IDataSourcePort } from '../../../services/data-source/data-source.port';
+import { SessionPurgeService } from '../../../services/session-purge';
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import { UsageTrackerService } from '../../services/usage-tracker';
 import { ActivityRecorderService } from '../../../services/activity-recorder';
@@ -45,7 +51,8 @@ import { ToggleRowDirective } from './toggle-row.directive';
 
 @Component({
   selector: 'sm-settings-project-realtime',
-  imports: [ButtonModule, FormsModule, ToggleRowDirective, ToggleSwitchModule],
+  imports: [ButtonModule, ConfirmDialogModule, FormsModule, ToggleRowDirective, ToggleSwitchModule],
+  providers: [ConfirmationService],
   templateUrl: './settings-project-realtime.html',
   styleUrl: './settings-project-rows.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -76,7 +83,10 @@ export class SettingsProjectRealtime {
 
   constructor() {
     effect(() => {
-      if (this.visible()) void this.activityReadiness.refresh();
+      if (this.visible()) {
+        void this.activityReadiness.refresh();
+        this.refreshJournalCount();
+      }
     });
   }
 
@@ -113,30 +123,73 @@ export class SettingsProjectRealtime {
   }
 
   /**
-   * Live lens replay tape. Not a preference: a readout of what this
-   * browser is holding plus the operator's delete, which is the ONLY
-   * thing that erases the recording (see `ActivityRecorderService`).
-   * Regenerable machine data, so the delete takes no confirmation
-   * dialog, matching the Activity clear-all posture.
+   * Session recording readout + the operator's FULL delete. Since the
+   * replay trash went tape-only (2026-08-17), the two memories can
+   * diverge, so this row reads BOTH: the browser tape (recorder
+   * signals) and the project journal (session-file count fetched on
+   * section open; defensive optional call, the settings specs mount
+   * partial DATA_SOURCE stubs and demo mode has no journal). The delete
+   * stays the ONE both-memories gesture (2026-08-16) behind the confirm
+   * that names the analyzer-evidence cost; it must be available while
+   * EITHER memory holds something, an empty tape with journal files on
+   * disk was exactly the 2026-08-17 field bug.
    */
   private readonly recorder = inject(ActivityRecorderService);
+  private readonly confirmation = inject(ConfirmationService);
+  private readonly purgeSvc = inject(SessionPurgeService);
+  private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
 
   protected readonly recordedCount = this.recorder.size;
 
+  /** Journal session-file count (0 until fetched; demo mode stays 0). */
+  protected readonly journalSessions = signal(0);
+
+  private refreshJournalCount(): void {
+    void this.dataSource
+      .getSessionJournal?.()
+      .then(({ sessions }) => this.journalSessions.set(sessions.length))
+      .catch(() => {
+        // Best-effort: the readout keeps its tape half.
+      });
+  }
+
   protected readonly recordingSummary = computed(() => {
     const events = this.recordedCount();
-    if (events === 0) return SETTINGS_TEXTS.project.live.recording.empty;
-    return SETTINGS_TEXTS.project.live.recording.summary(
-      formatExactCount(events),
-      formatStoredSize(this.recorder.storedChars()),
-    );
+    const sessions = this.journalSessions();
+    const parts: string[] = [];
+    if (events > 0) {
+      parts.push(
+        SETTINGS_TEXTS.project.live.recording.tape(
+          formatExactCount(events),
+          formatStoredSize(this.recorder.storedChars()),
+        ),
+      );
+    }
+    if (sessions > 0) {
+      parts.push(SETTINGS_TEXTS.project.live.recording.journal(sessions));
+    }
+    if (parts.length === 0) return SETTINGS_TEXTS.project.live.recording.empty;
+    return parts.join(SETTINGS_TEXTS.project.live.recording.separator);
   });
 
   protected onDeleteRecording(): void {
     // No usage event: `TUsageFeatureSurface` is a CLOSED taxonomy
     // (spec/telemetry.md), and a new member is a spec change, not a
     // side effect of adding a button.
-    this.recorder.clear();
+    this.confirmation.confirm({
+      header: SESSION_PURGE_TEXTS.confirmHeader,
+      message: SESSION_PURGE_TEXTS.confirmMessage,
+      acceptLabel: SESSION_PURGE_TEXTS.confirmAccept,
+      rejectLabel: SESSION_PURGE_TEXTS.confirmReject,
+      acceptButtonProps: { severity: 'danger' },
+      rejectButtonProps: { severity: 'secondary' },
+      accept: () => {
+        this.purgeSvc.purge();
+        // Optimistic: the journal wipe is fire-and-forget; the count
+        // re-syncs on the next section open either way.
+        this.journalSessions.set(0);
+      },
+    });
   }
 }
 

@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Flaky tests are a design smell</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Flaky tests are a design smell</h1>
+
+  <p>A test that passes sometimes and fails sometimes, with no change to the code, is not a bad test. It is a working sensor. It is telling you the system it exercises does not behave the same way twice, and that is worth knowing before a user finds out the hard way.</p>
+
+  <h2>What flaky actually means</h2>
+  <p>Flaky does not mean fragile or badly written. It means the outcome depends on something the test did not control: a clock, a queue, a thread, a network call, a shared row in a database. The test is deterministic. The system under test is not. The test is just the first thing that noticed.</p>
+
+  <h2>The usual culprits</h2>
+  <p>Most flakiness traces back to a small list of causes. Shared state left over from a previous run or a previous test in the same suite. Time: a deadline computed too close to the boundary, a clock that ticks mid-assertion. Ordering: code that assumes requests, events, or writes arrive in the sequence they were sent. Concurrency: two operations racing for the same resource with no lock or no wait. Network: a call that usually returns fast and occasionally does not. None of these are test problems. They are production problems that happen to be visible in a test.</p>
+
+  <h2>Retry-until-green is a cost transfer to users</h2>
+  <p>Adding a retry to a flaky test, or re-running the pipeline until it passes, does not fix anything. It moves the cost from the CI log, where an engineer sees it and can shrug it off, to production, where a user sees it as a lost order, a duplicate charge, or a page that never loads. The nondeterminism did not go away. It only stopped being measured.</p>
+
+  <h2>When quarantine is acceptable</h2>
+  <p>Sometimes a flaky test really does need to be isolated: skipped, tagged, or moved out of the required checks while the real cause is investigated. That is fine as a temporary holding pen, not as a resolution. The condition for quarantine is a ticket with a name on it and a reason, not silence. A quarantined test with no owner is a flaky test that has been made invisible instead of fixed.</p>
+
+  <h2>What to fix instead</h2>
+  <p>Fix the thing the test exposed. Give each test its own data instead of sharing a fixture. Inject the clock instead of reading the real one. Make ordering explicit instead of assumed, with a wait condition or a message that carries a sequence number. Put a real timeout and a real retry policy around the network call, and test that the policy works instead of hoping the call is fast. When the flaky test goes green for the right reason, it stays green.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

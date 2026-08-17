@@ -855,6 +855,23 @@
   }
 }
 
+/* Replay paused (user request 2026-08-16): the narration is frozen, so
+   every execution animation freezes its current frame with it; Play
+   resumes them mid-cycle. `animation-play-state` only, no teardown, so
+   nothing restarts or re-triggers on resume. The node card's own exec
+   motion (ring, ribbon, badge pulse) pauses from `node-card.css` via
+   `:host-context` on the same root class; the lens chrome (frame
+   breathe, badge blink) deliberately keeps moving, it narrates the
+   MODE, not the execution. */
+.graph--replay-paused .sm-gnode__halo::before,
+.graph--replay-paused .sm-gnode__spark,
+.graph--replay-paused .f-conn--executing,
+.graph--replay-paused .graph__canvas-wrap ::ng-deep .f-conn--spawn .f-connection-path,
+.graph--replay-paused .graph__canvas-wrap ::ng-deep .f-conn--spawn-active .f-connection-path,
+.graph--replay-paused .graph__canvas-wrap ::ng-deep .f-conn--invocation .f-connection-path {
+  animation-play-state: paused;
+}
+
 /* Tool label on the invocation edge, Foblex's own fConnectionContent
    (positioned along the path by the library, rule 3: paint only, no
    transforms here). Exec-tinted chip over the card surface, ellipsised

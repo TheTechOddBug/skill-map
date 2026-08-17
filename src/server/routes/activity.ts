@@ -49,6 +49,7 @@ import type { Hono } from 'hono';
 
 import type { WsBroadcaster } from '../broadcaster.js';
 import type { ActivityConversationStore } from '../activity-conversations.js';
+import type { ActivityJournalService } from '../activity-journal.js';
 import type { ActivityOwnerIndex } from '../activity-owner-index.js';
 import { probeNonceOf, type ActivityProbeStore } from '../activity-probe.js';
 import type { ActivityStatsService } from '../activity-stats.js';
@@ -123,6 +124,15 @@ export interface IActivityRouteDeps extends IRouteDeps {
    * contract (never on `IRouteDeps`, see `activity-conversations.ts`).
    */
   conversations: ActivityConversationStore;
+  /**
+   * Session journal (see `activity-journal.ts`). Fed at THIS
+   * post-resolution seam only, and only with the wire-shaped payloads:
+   * the pre-stats `node.activity` data and the metadata-only spawn
+   * projection before `pairCount` attaches, so the boot-scoped derived
+   * fields (and any content) can never reach disk. Fire-and-forget
+   * inside; a journal failure never fails ingest.
+   */
+  journal: ActivityJournalService;
 }
 
 export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void {
@@ -145,8 +155,8 @@ export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void
     });
     logActivityIngest(body.provider, body.event, resolution);
     const { activity, spawns, reports } = resolution;
-    broadcastActivity(deps, activity);
-    broadcastSpawns(deps, spawns);
+    broadcastActivity(deps, activity, body.provider);
+    broadcastSpawns(deps, spawns, body.provider);
     // End-of-context reports (the async response source) go ONLY to
     // the gated store; like the spawn halves they never broadcast.
     for (const report of reports) {
@@ -158,15 +168,19 @@ export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void
 }
 
 /**
- * Feed each resolved signal to the stats accumulator and broadcast one
- * `node.activity` frame per signal (stats-enriched when the start
- * counted).
+ * Feed each resolved signal to the stats accumulator, journal the
+ * PRE-enrichment payload (the journal strips `stats` by contract, so it
+ * receives the data before the accumulator snapshot attaches), and
+ * broadcast one `node.activity` frame per signal (stats-enriched when
+ * the start counted).
  */
 function broadcastActivity(
   deps: IActivityRouteDeps,
   activity: readonly INodeActivityEventData[],
+  provider: string,
 ): void {
   for (const data of activity) {
+    deps.journal.recordActivity(provider, data);
     const stats = deps.stats.record(data);
     const payload: INodeActivityEventData = stats ? { ...data, stats } : data;
     deps.broadcaster.broadcast(buildNodeActivityEvent(payload));
@@ -176,9 +190,15 @@ function broadcastActivity(
 /**
  * Per resolved spawn: record it in the consent-gated conversation store
  * (a no-op while the gate is off), count the pair, attribute any
- * execution totals to the child, and broadcast the METADATA-ONLY frame.
+ * execution totals to the child, journal the metadata-only projection
+ * (BEFORE `pairCount` attaches, so the boot-scoped counter never lands
+ * on disk), and broadcast the METADATA-ONLY frame.
  */
-function broadcastSpawns(deps: IActivityRouteDeps, spawns: readonly IResolvedSpawn[]): void {
+function broadcastSpawns(
+  deps: IActivityRouteDeps,
+  spawns: readonly IResolvedSpawn[],
+  provider: string,
+): void {
   for (const spawn of spawns) {
     deps.conversations.record(spawn);
     const pairCount = deps.stats.recordSpawn(spawn);
@@ -186,6 +206,7 @@ function broadcastSpawns(deps: IActivityRouteDeps, spawns: readonly IResolvedSpa
       deps.stats.recordExecution(spawn.childNodePath, spawn.execution);
     }
     const data = toSpawnEventData(spawn);
+    deps.journal.recordSpawn(provider, data);
     if (pairCount !== null) data.pairCount = pairCount;
     deps.broadcaster.broadcast(buildAgentSpawnEvent(data));
   }

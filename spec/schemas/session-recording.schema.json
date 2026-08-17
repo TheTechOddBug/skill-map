@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v1/session-recording.schema.json",
+  "title": "SessionRecording",
+  "description": "One recorded runtime session: the resolved, content-free activity frames the BFF journaled to `<scopeRoot>/.skill-map/sessions/<file>.json` while `sm serve` was up (see `provider-activity.md` section Session journal). This is the SINGLE session-recording format: the on-disk journal today, the export/import envelope later. Frames carry the SAME wire shapes as the `node.activity` / `agent.spawn` WS events, minus the boot-scoped derived fields (`stats`, `pairCount`), and are content-free by construction: no prompts, no tool arguments, no file contents, no conversation halves (the frame shapes here close with `additionalProperties: false`, so a content field cannot ride even by accident). Machine output per the Storage rule (`architecture.md` section Storage rule): regenerable by re-running sessions, disposable, gitignored, operator-deletable. Readers AJV-validate every file against this schema and SKIP off-shape files silently.",
+  "type": "object",
+  "required": ["schemaVersion", "rootOwner", "startedAt", "frames"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Shape version of this file. Bumped only on breaking changes to the on-disk shape; pre-1.0 the value stays `1`."
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The runtime's own session id, when derivable: the `main:<session_id>` owner-prefix hint, or the first `session` field stamped on a frame attributed to this session (Codex stamps it; Claude does not). Absent for bare owners."
+    },
+    "rootOwner": {
+      "type": "string",
+      "description": "The session context's owner key (opaque, never parsed beyond the `main:` prefix hint). The session's identity within one serve boot; the empty string identifies the unattributed bucket file (frames the journal could not attribute to any session)."
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Registered provider id the frames were ingested under (e.g. `claude`). Advisory; absent when the writer did not track it."
+    },
+    "startedAt": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Unix-ms timestamp of the first frame attributed to this session."
+    },
+    "endedAt": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Unix-ms timestamp of the last frame at finalization. Absent while the session file is still open (the debounced writer updates the file mid-session; finalization stamps this on session release or server shutdown)."
+    },
+    "frames": {
+      "type": "array",
+      "description": "The session's resolved activity frames in arrival order. Each frame is one broadcast WS event payload, minus the boot-scoped derived fields.",
+      "items": { "$ref": "#/$defs/Frame" }
+    }
+  },
+  "$defs": {
+    "Frame": {
+      "type": "object",
+      "required": ["tMs", "type", "data"],
+      "additionalProperties": false,
+      "properties": {
+        "tMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Unix-ms timestamp the BFF resolved the frame at (the same clock the WS envelope's `timestamp` uses)."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["node.activity", "agent.spawn"],
+          "description": "Which WS event family the frame mirrors."
+        },
+        "data": {
+          "description": "The event payload, shape per `type` (enforced by the `oneOf` below)."
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "type": { "const": "node.activity" },
+            "data": { "$ref": "#/$defs/NodeActivityData" }
+          }
+        },
+        {
+          "properties": {
+            "type": { "const": "agent.spawn" },
+            "data": { "$ref": "#/$defs/AgentSpawnData" }
+          }
+        }
+      ]
+    },
+    "NodeActivityData": {
+      "type": "object",
+      "description": "The `node.activity` wire payload (`provider-activity.md` section WS event: `node.activity`) minus `stats`, the boot-scoped derived accumulator snapshot, which is stripped at journal time (it is regenerable and meaningless across boots). Field semantics are normative in the prose contract; this shape only pins what may appear on disk.",
+      "required": ["phase"],
+      "additionalProperties": false,
+      "properties": {
+        "nodePath": { "type": "string", "minLength": 1 },
+        "phase": { "type": "string", "enum": ["start", "end"] },
+        "owner": { "type": "string" },
+        "session": { "type": "string" },
+        "ownerScope": { "type": "boolean" },
+        "sessionScope": { "type": "boolean" },
+        "terminal": { "type": "boolean" },
+        "turnEnd": { "type": "boolean" },
+        "sticky": { "type": "boolean" },
+        "keepAlive": { "type": "boolean" },
+        "detail": { "type": "string" },
+        "access": { "type": "string", "enum": ["mcp", "read"] }
+      }
+    },
+    "AgentSpawnData": {
+      "type": "object",
+      "description": "The `agent.spawn` wire payload (`provider-activity.md` section WS event: `agent.spawn`) minus `pairCount`, the boot-scoped derived pair counter, which is stripped at journal time. Metadata only, like the wire shape: the conversation halves have no field here and cannot land on disk.",
+      "required": ["spawnId", "phase", "parentOwner"],
+      "additionalProperties": false,
+      "properties": {
+        "spawnId": { "type": "string", "minLength": 1 },
+        "phase": { "type": "string", "enum": ["start", "handoff", "end"] },
+        "parentOwner": { "type": "string" },
+        "parentNodePath": { "type": "string", "minLength": 1 },
+        "childKind": { "type": "string" },
+        "childName": { "type": "string" },
+        "childNodePath": { "type": "string", "minLength": 1 },
+        "childOwner": { "type": "string" }
+      }
+    }
+  }
+}

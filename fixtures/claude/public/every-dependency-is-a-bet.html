@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Every dependency is a bet</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Every dependency is a bet</h1>
+
+  <p>Running `npm install` feels free. It takes a few seconds, the code is right there, and the problem it solves disappears immediately. But you did not just save time, you placed a bet: that a stranger will keep fixing, updating, and securing that code for as long as your project needs it. The cost of that bet does not show up at install time. It shows up later.</p>
+
+  <h2>The payoff is immediate, the premium is deferred</h2>
+  <p>A library saves you real work today: no need to write a date parser, a retry wrapper, a form validator. That win is visible and easy to justify in a pull request. What is not visible is the premium you signed up to pay, every future breaking change, every abandoned repo, every transitive vulnerability, every major version that rewrites its own API. None of that is priced in when you type the install command.</p>
+
+  <h2>Maintenance is somebody else's mood, not a guarantee</h2>
+  <p>Open source maintenance is usually one person, working for free, on their own schedule, with no obligation to you. They might keep the project alive for a decade. They might lose interest next year, get a new job, or burn out answering issues nobody thanks them for. You do not control which outcome you get, and you rarely know which one you are betting on until it already happened.</p>
+
+  <h2>The cost compounds with every dependency of a dependency</h2>
+  <p>You are not just betting on the library you chose. You are betting on everything it depends on, and everything those depend on. A small utility package can pull in a tree of maintainers you have never heard of, each one a separate bet, each one able to break your build or ship a compromised release without you ever having chosen them directly.</p>
+
+  <h2>Read the bet before you place it</h2>
+  <p>Before adding a dependency, look at it the way you would size a bet: recent commits, open issue count, how the maintainer responds to security reports, how many other projects depend on the same thing. A library with one maintainer and no commits in two years is a different wager than one backed by a foundation and a paid team, even if both solve the same problem today.</p>
+
+  <h2>The default</h2>
+  <p>Write the small thing yourself when the library only saves you an afternoon. Take the dependency when it saves you a domain you do not want to own, cryptography, date math across time zones, a parser for a format you do not control. Either way, know that you are betting, not just installing.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

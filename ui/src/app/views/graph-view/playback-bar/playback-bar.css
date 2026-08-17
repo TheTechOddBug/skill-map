@@ -1,21 +1,73 @@
 /*
  * Replay transport bar: floats above the map's main toolbar while the
- * lens replays. Same pill language as `.graph__toolbar` (the host is
- * positioned by graph-view.css so the inspector-width shift is shared);
- * amber accents ride `--sm-replay-c`, matching the frame and badge.
+ * lens replays (the host is positioned by graph-view.css so the
+ * inspector-width shift is shared); amber accents ride `--sm-replay-c`,
+ * matching the frame and badge.
+ *
+ * Three-row layout with a FIXED width (user request 2026-08-16): the
+ * timeline rides its own row, the controls + scope + counter the
+ * second, and the caption the third at full width (the narration is
+ * the information worth reading, so it never gets squeezed by the
+ * controls). The historical single-row pill was `max-content` wide, so
+ * the caption that swaps on every frame resized the bar and, through
+ * the host's translateX(-50%) centering, slid the scrubber under the
+ * pointer mid-drag. With the width pinned and every row always
+ * rendered (the caption row reserves its height even before step 0,
+ * the bar is bottom-anchored so a late-appearing row would shift the
+ * timeline vertically instead), no dynamic text can move the timeline.
+ * The pill radius went with the single row; a multi-row block reads as
+ * a card, so it uses the xl radius instead.
  */
 
 .pbar {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  width: max-content;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 12px 4px;
+  /* Fixed, never content-driven; the viewport clamp keeps the floating
+     bar inside narrow windows. */
+  width: min(26rem, calc(100vw - 2rem));
   background: var(--sm-bg-content);
   border: 1px solid color-mix(in srgb, var(--sm-replay-c) 55%, transparent);
-  border-radius: var(--sm-radius-pill);
+  border-radius: var(--sm-radius-xl);
   box-shadow: var(--sm-shadow-floating);
   pointer-events: auto;
+}
+
+/* Row 1: the timeline alone, full bar width. */
+.pbar__timeline {
+  display: flex;
+  align-items: center;
+}
+
+.pbar__scrubber {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--sm-replay-c);
+}
+
+.pbar__scrubber:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 2px;
+}
+
+/* Row 2: controls left, scope + counter clustered right. The auto
+   margin lands on whichever of the two renders first (the scope chip
+   is conditional), so the right cluster holds without a spacer. */
+.pbar__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pbar__controls > .pbar__scope,
+.pbar__controls > .pbar__counter {
+  margin-left: auto;
+}
+
+.pbar__scope + .pbar__counter {
+  margin-left: 0;
 }
 
 .pbar__sep {
@@ -26,25 +78,58 @@
   flex-shrink: 0;
 }
 
-.pbar__scrubber {
-  width: 180px;
-  accent-color: var(--sm-replay-c);
-}
-
-.pbar__scrubber:focus-visible {
-  outline: 2px solid var(--p-primary-color);
-  outline-offset: 2px;
-}
-
 .pbar__counter {
   font-size: var(--sm-fs-sm);
   font-variant-numeric: tabular-nums;
   color: var(--p-text-muted-color);
   white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Scope chip: which slice a session-scoped replay narrates. */
+.pbar__scope {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: var(--sm-fs-sm);
+  color: var(--p-primary-color);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 999px;
+  padding: 0 0.5rem;
+}
+
+/* Row 3: the caption alone, full bar width. ALWAYS one line tall (see
+   the header comment: a row appearing on the first frame would shift
+   the bottom-anchored bar vertically), ellipsis on overflow. */
+.pbar__caption-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 1.15rem;
+}
+
+/* Time stamps of the narrated step: wall-clock, then the `(mm:ss)`
+   session offset. Tabular digits: every frame renders the same width,
+   so the caption text never shifts while stepping / scrubbing (the
+   offset can still gain a digit crossing 1h, a once-per-replay jump). */
+.pbar__time {
+  flex-shrink: 0;
+  font-size: var(--sm-fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--p-text-muted-color);
+}
+
+/* The offset reads one step quieter than the wall clock. */
+.pbar__time--elapsed {
+  color: color-mix(in srgb, var(--p-text-muted-color) 70%, transparent);
 }
 
 .pbar__caption {
-  max-width: 240px;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

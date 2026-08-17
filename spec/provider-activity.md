@@ -30,9 +30,11 @@ The pipeline crosses four independently-owned pieces:
   a scan-time engine; it is not alive at runtime and never transports events.
 - **BFF** owns the runtime: the ingest route, the event->node resolution against the
   scanned node set, the WebSocket broadcast, the in-memory execution-stats
-  accumulator (§Execution stats), and the consent-gated conversation store
-  (§Conversation capture). Activity state is in-memory only; nothing is persisted
-  (no `scan_*` / `state_*` writes), and everything dies with the process.
+  accumulator (§Execution stats), the consent-gated conversation store
+  (§Conversation capture), and the session journal (§Session journal). Activity
+  STATE is in-memory only, no `scan_*` / `state_*` writes, and dies with the
+  process; the one durable output is the journal's per-session files of RESOLVED,
+  content-free frames under `.skill-map/sessions/`.
 - **Bridge** is the tiny artifact installed into the provider's own hook config. It
   has ZERO skill-map logic beyond discovery + forwarding (see §Bridge contract).
 - **UI** owns presentation: per-node lighting, the active spine, TTL decay.
@@ -862,6 +864,206 @@ One RETAINED spawn record (the edge-click surface), with its `prompt` /
 only while the gate is on, so with the gate off (or after it cleared the
 store) the route answers `404`, exactly like an unknown id.
 
+## Session journal
+
+The one durable output of the activity pipeline (decision 2026-08-16, the
+carve-out from the ephemerality contract above): while `sm serve` runs, the
+BFF groups the RESOLVED frames it broadcasts into runtime sessions and
+persists each session as one JSON file under `<scopeRoot>/.skill-map/sessions/`,
+shape [`schemas/session-recording.schema.json`](./schemas/session-recording.schema.json).
+The journal is simultaneously the server-side activity memory (a session
+survives a server restart or a closed page), the export/import format the
+recording schema anchors, and the evidence base of the design-vs-reality
+evaluation (`sm scan` folds it into observed relations, below). It exists to
+evaluate the AUTHORED design, never as an observability log: frames record
+WHICH nodes executed and who spawned whom, no latency, no tokens, no content.
+
+- **Capture is a GESTURE, never ambient** (user decision 2026-08-16,
+  superseding the always-on capture this section first shipped with):
+  frames land in the journal ONLY while the operator is RECORDING. The
+  recording state lives server-side (`POST
+  /api/activity/sessions/recording`, body `{ "recording": true|false }`,
+  response `{ "recording": <effective state> }`; the current state also
+  rides the read-back envelope below), toggled by the UI's Record
+  session / Stop control together with the client tape, and it SURVIVES
+  page reloads: a reopened browser probes the state and resumes its own
+  tape capture while the server keeps recording. Boot state is OFF;
+  server shutdown finalizes and drops it. Stopping finalizes every
+  still-open session (endedAt + operations line each). Honest
+  consequence, accepted with the decision: the observed-relations
+  evidence (§Consumption) covers only the windows the operator chose to
+  record.
+- **What is journaled**: exactly the wire payloads of the `node.activity` /
+  `agent.spawn` WS events, captured at the SAME post-resolution seam the
+  broadcast uses, minus the boot-scoped derived fields (`stats` on
+  `node.activity`, `pairCount` on `agent.spawn`), which are regenerable and
+  meaningless across boots. The raw provider event is still NEVER persisted,
+  and the spawn frame is the metadata-only projection, so the journal is
+  content-free by construction (the schema's frame shapes are closed:
+  a prompt, argument, or file-content field cannot land on disk even by
+  accident). Consent gates are untouched: `activity.captureConversations`
+  governs the in-memory conversation store only and nothing content-shaped
+  ever reaches a journal file.
+- **Session grouping** mirrors the client session index's STRUCTURAL rules: a
+  session root owner is the `parentOwner` of any spawn frame whose
+  `parentNodePath` is absent (the wire's own session-context discriminator),
+  or any activity `owner` never claimed as a `childOwner`; a `childOwner`
+  claim attributes an owner to the spawning session, latest claim at or
+  before the frame's time winning (the re-spawn rule). The `main:<session_id>`
+  prefix and the `session` field are hints only, never parsed further. A
+  frame that cannot be attributed lands in the most recent open session,
+  else in a dedicated unattributed bucket file (`rootOwner: ""`); the
+  journal never guesses. Because the fold is STREAMING (one pass, arrival
+  order) while the client index folds the whole tape with lookback, a claim
+  can arrive LATE: the parent's and child's hook processes race, so the
+  child's first activity may precede the `"handoff"` frame carrying its
+  `childOwner`. A late claim therefore ADOPTS any session wrongly rooted at
+  the claimed owner: its frames merge into the claiming session in
+  chronological order and its file, if one was already flushed, is removed.
+  Without adoption every such race splits one conversation into two files.
+- **Write cadence**: an in-memory buffer per session, flushed to its file on
+  a short debounce (~2s) while frames arrive. **Finalization** stamps
+  `endedAt`, appends one `activity.session-write` operations-log line
+  ([`cli-contract.md`](./cli-contract.md) §Operations log), and prunes; it
+  fires on session release (a `sessionScope` end naming the session, or a
+  terminal `ownerScope` end of the session's root owner) and on server
+  shutdown for every still-open session. A `turnEnd` does NOT finalize: a
+  session spans many turns. Finalization is REOPENABLE within one recording
+  window: several providers' release forms mean "everything is idle NOW",
+  not "the conversation is over" (codex's per-turn main `Stop`, Antigravity's
+  fully-idle `Stop`, opencode's `session.idle`; only Claude's `SessionEnd`
+  is a true terminal), so a frame attributed to an already-finalized root
+  REOPENS that session onto its same file: same name, frames keep
+  appending, `endedAt` re-stamped at the next finalization (each
+  finalization is a real write and logs its own operations line). Without
+  reopen, every multi-turn conversation on those providers fragments into
+  one file per turn. The reopen memory is bounded by the retention file
+  count and dies with the recording window: stopping the recording,
+  shutdown, and deletion all clear it.
+- **Naming**: `<startedAt ISO-8601, colons stripped>-<suffix>.json`, where
+  the suffix is the runtime session id when derivable (sanitized to
+  `[A-Za-z0-9._-]`) and an 8-char hash of the root owner otherwise. Sortable
+  by name, stable per session within a boot.
+- **Retention**: bounded by file count and total size (defaults: 50 files,
+  20 MiB), oldest first by name, pruned at server boot and at each
+  finalization. Deleting any or all files by hand is always safe.
+- **Read-back**: `GET /api/activity/sessions` serves the journal for
+  client hydration: `{ "schemaVersion": "1", "kind": "activity-sessions",
+  "sessions": [<SessionRecording>...], "skipped": [<basename>...],
+  "recording": <bool> }` (the live recording state, so a reloaded page
+  restores its Record/Stop control),
+  files read fresh per request in name order (chronological), each
+  AJV-validated against the recording schema with off-shape files
+  SKIPPED into `skipped` (the map-views dialect: a broken file never
+  takes the list down). Pending in-memory buffers are flushed first, so
+  a just-recorded session is visible without waiting out the debounce.
+  Loopback-gated, no token (operator surface). This is what lets the
+  SPA's Sessions tab list and replay sessions recorded before the page
+  opened (or by another browser): the journal is the durable memory,
+  the client tape only the current page's.
+- **Deletion**: `DELETE /api/activity/sessions` empties the journal in one
+  gesture: every session file plus the serve process's open in-memory
+  buffers (discarded without finalizing, so a pending debounce flush
+  cannot resurrect a wiped file). Answers `204` always (an absent
+  directory included) and logs ONE `activity.sessions-clear` operations
+  line. Loopback-gated, no token (operator surface). Of the SPA's two
+  delete affordances, only the Settings row calls it (together with
+  clearing the client tape, behind a confirm that warns the operator the
+  observed-relations EVIDENCE, every design-vs-reality analyzer's input,
+  goes with it); the replay transport's trash acts on the BROWSER TAPE
+  ONLY, journal files untouched (decision 2026-08-17, superseding the
+  2026-08-16 erase-as-one: the journal is the accumulated evidence the
+  volume gates count on, so the casual replay-cleanup gesture must not
+  drain it), and is SCOPED to what the replay narrates: watching one
+  tape-held session, it removes that session's frames alone (the row
+  re-lists from its journal file, still replayable); an unscoped replay
+  keeps the whole-tape clear; a journal-sourced replay shows no trash at
+  all, nothing of it lives in the browser. Hand-deleting files stays
+  equally safe.
+- **Master switch**: `activity.journal.enabled`
+  ([`schemas/project-config.schema.json`](./schemas/project-config.schema.json)),
+  default `true`, read at serve boot. A NORMAL project-config key, committable
+  in the shared `project` layer: the journal is content-free, so this is a
+  team preference, not a consent gate (unlike `activity.captureConversations`).
+  Off means the journal feature is unavailable for the boot: the recording
+  toggle cannot engage (`POST …/recording` answers `recording: false`) and
+  nothing is written; existing files are left untouched either way.
+- **Failure posture**: fire-and-forget, like the operations log. A journal
+  write failure never fails or delays ingest; without a `.skill-map/`
+  directory the journal stays silent and writes nothing.
+- **Consumption (design-vs-reality)**: at scan time the driving adapter reads
+  every journal file (AJV-validating each against the recording schema and
+  SKIPPING off-shape files silently, disposable machine data), folds the
+  frames into **observed relations**, `(source node, target node)` pairs with
+  `relation: invokes` (an MCP tool call correlated to its calling unit by
+  owner), `relation: spawns` (a spawn frame carrying both resolved paths), or
+  `relation: reads` (an `access: 'read'` frame correlated to its reading unit
+  by owner, the same correlation the invokes class uses; the read path never
+  becomes the owner's current unit). The unit correlation is TURN-BOUNDED: a
+  `turnEnd` frame clears its owner's current-unit claim, so an access in a
+  later turn never attributes to a unit from an earlier one (the journal's
+  discrete mirror of the live map's TTL decay; a subagent has no turn
+  boundary, everything it touches is its own work for its whole span). The
+  fold also produces **observed executions**: per-node
+  unit-run counts (a `start` frame naming a node with NO resource access;
+  `keepAlive` custody heartbeats do not count, a sticky agent span counts
+  once per claim) plus the count of ACTIVE sessions, the distinct recorded
+  sessions that produced at least one unit run (the honest denominator for
+  "never ran": a recording where nothing executed proves nothing). Both
+  products thread to analyzers as `IAnalyzerContext.observedRelations` /
+  `IAnalyzerContext.observedExecutions` (absent when the journal is empty).
+  Three deterministic analyzers consume them, covering the
+  design-vs-reality diff:
+  - `core/observed-link-missing` (reality the design lacks) emits one `info`
+    issue per observed pair whose source and target both exist in the
+    scanned set and that no declared `invokes` / `references` link covers
+    (matching on the link's resolved target, falling back to the raw target;
+    `mentions` / `points` do not count as declarations of execution). A
+    `reads` pair is held to a stricter standard on BOTH sides, because
+    reading is routine where executing is deliberate: it only flags past a
+    REPETITION gate (at least 3 observed reads of the pair), and a `points`
+    link ALSO covers it (a backtick path naming the file already declares
+    that the file matters here; only `mentions`, name-only, never covers).
+  - `core/observed-link-dead` (design reality never confirms, the
+    dead-design detector) emits one `info` issue per declared `invokes` /
+    `references` link that reality could have confirmed but never did. Three
+    gates keep it honest: the link must be OBSERVABLE, meaning reality had
+    an evidence class that could have confirmed it, for an `invokes` link a
+    resolved target that is an `mcp://` node or an `agent`-kind node (the
+    invokes / spawns classes), and for a `references` link ANY scanned
+    target (every scanned node can be read, so the reads class makes all of
+    them confirmable; an `invokes` link to a skill or command stays
+    unjudged, unit-to-unit execution pairs are not folded); the source must
+    have executed at least 3 times across recorded sessions (the VOLUME
+    gate: absence of evidence means nothing until the source demonstrably
+    ran); and the (source, resolved target) pair must appear in no recorded
+    session under ANY relation. Both endpoints must exist in the scanned
+    set, and self-links are skipped.
+  - `core/observed-node-dead` (the node-level dead-design detector,
+    2026-08-17) emits one `info` issue per RUNNABLE node (kind `skill`,
+    `agent`, or `command`; docs and virtual nodes never flag, they do not
+    execute) that never ran in any recorded session, gated on at least 20
+    ACTIVE sessions of accumulated evidence (the volume gate at the node
+    grain: "this node never runs" is only worth saying once plenty of
+    recorded activity happened around it). `data.target` carries the
+    node's own path as the suppression value.
+  All three analyzers ship `stability: 'experimental'` (2026-08-17):
+  disabled by default while the evidence gates prove themselves in real
+  projects, opted into per extension via the Settings toggle or
+  `sm plugins enable core/<analyzer>`. Every volume / repetition gate above
+  is a per-extension SETTING with the stated value as its default (integer,
+  minimum 1): `min-read-observations`
+  on `core/observed-link-missing` (default 3), `min-source-runs` on
+  `core/observed-link-dead` (default 3), and `min-active-sessions` on
+  `core/observed-node-dead` (default 20), each tunable via
+  `sm plugins config core/<analyzer> <setting> <n>` or the extension's
+  Settings form. The operator fixes by editing the markdown (declaring the
+  missing link, or removing / reworking the never-confirmed one, makes the
+  issue disappear on the next scan) or dismisses durably via the standard
+  issue-suppression sidecar affordance (the link analyzers stamp
+  `data.target` with the resolved target, the node analyzer with the node's
+  own path); there is deliberately NO auto-fixer for any direction.
+
 ## Transport shapes
 
 Three shapes converge on the same ingest route; the provider's `install.kind`
@@ -883,9 +1085,12 @@ declares which applies:
   metadata, and, ONLY under the explicit capture gate, inter-agent conversation
   content) is in-memory only and dies with the process; the raw event is
   dropped after mapping. Conversation retention is opt-in and off by default
-  (§Conversation capture). Wider rich surfaces (a full tool log with arguments)
-  remain future opt-in gates, and file CONTENTS stay excluded unless explicitly
-  enabled.
+  (§Conversation capture). The single durable carve-out is the session journal
+  (§Session journal): RESOLVED, content-free frames only, persisted
+  project-locally under `.skill-map/sessions/`, gitignored, operator-deletable,
+  and excluded from telemetry like everything else here. Wider rich surfaces
+  (a full tool log with arguments) remain future opt-in gates, and file
+  CONTENTS stay excluded unless explicitly enabled.
 - Installation is explicit: `sm activity install <provider>` is operator-invoked
   and consent-prompted, and the SPA equivalent (§Install management over HTTP)
   sits behind a server-enforced confirm gate on BOTH install and uninstall.
@@ -901,7 +1106,7 @@ Live-verified against real runs (2026-06-30). These inform each provider's
 
 | Provider | skill | agent | command | notes |
 |---|---|---|---|---|
-| `claude` | `PreToolUse` tool=`Skill` (`tool_input.skill`), slash form via `UserPromptExpansion.command_name` | `SubagentStart` (start) / `SubagentStop` (owner-scoped end, `ownerScope: true`) keyed by `agent_id`; `agent_id`/`agent_type` on inner tool events; deep nesting attributable. The spawning `Agent` `PreToolUse`/`PostToolUse` pair emits the parent-custody claims (`keepAlive: true`, excluded from execution counting) plus the `spawn` relation block (`prompt` on start, sync `response` on completion; main-context spawns use the relation-only signal form). It deliberately NEVER claims the CHILD node: that claim would outlive the child's own `SubagentStop` (TTL instead of native end) | `UserPromptExpansion.command_name` (shares the `/` namespace with skills; disambiguate by which node exists) | markdown usage: `PreToolUse` tool=`Read`, `Write` or `Edit` (all carry `tool_input.file_path`, relativized against the event's `cwd`) emits a PATH signal, with the literal tool name as `detail` so clients can label reads apart from writes; non-`.md` paths and paths outside the scope root are early-disclaimed either way. A `Write` creating a NEW file resolves to no scanned node and drops; the node lights on later touches once the watcher has scanned it. MCP usage: `PreToolUse` tool=`mcp__<server>__<tool>` (the bridge matcher is widened to `^(Skill|Agent|Read|Write|Edit|mcp__.+)$`) emits a PATH signal to the `mcp://<server>` node, the SAME node the static `core/mcp-tools` edge targets (and `mcpConfig` config-side discovery materialises), so a live tool call lights it deterministically, the runtime reports the exact tool name, no inference. Auto-loaded context (`CLAUDE.md` at session start) fires no tool event and stays invisible. Main-context owner is sessionized (`main:<session_id>`, bare `main` when the payload carries no `session_id`). Terminal `SubagentStop` carries `last_assistant_message` (the child's final report, the async response source) plus `agent_transcript_path`; sync completions carry the report as `tool_response.content` text blocks. Ignore `SubagentStop` orphans with empty `agent_type`. The main-context `Stop` (wired `*`, fires only when the MAIN response completes, never on a nap) maps to the node-less TURN-END form (`{ phase: "end", owner: main:<session_id>, turnEnd: true }`, §WS event: `node.activity`): `PostToolUse` only fires on a SUCCESSFUL tool call, so an interrupted or failed `Agent` call leaves a relation with no end frame, and the turn boundary is the moment it is provably dead (deliberately NOT an `ownerScope` release: main's node claims keep the v1 TTL-decay contract) |
+| `claude` | `PreToolUse` tool=`Skill` (`tool_input.skill`), slash form via `UserPromptExpansion.command_name` | `SubagentStart` (start) / `SubagentStop` (owner-scoped end, `ownerScope: true`) keyed by `agent_id`; `agent_id`/`agent_type` on inner tool events; deep nesting attributable. The spawning `Agent` `PreToolUse`/`PostToolUse` pair emits the parent-custody claims (`keepAlive: true`, excluded from execution counting) plus the `spawn` relation block (`prompt` on start, sync `response` on completion; main-context spawns use the relation-only signal form). It deliberately NEVER claims the CHILD node: that claim would outlive the child's own `SubagentStop` (TTL instead of native end) | `UserPromptExpansion.command_name` (shares the `/` namespace with skills; disambiguate by which node exists) | markdown usage: `PreToolUse` tool=`Read`, `Write` or `Edit` (all carry `tool_input.file_path`, relativized against the event's `cwd`) emits a PATH signal, with the literal tool name as `detail` so clients can label reads apart from writes; non-`.md` paths and paths outside the scope root are early-disclaimed either way. A `Write` creating a NEW file resolves to no scanned node and drops; the node lights on later touches once the watcher has scanned it. MCP usage: `PreToolUse` tool=`mcp__<server>__<tool>` (the bridge matcher is widened to `^(Skill|Agent|Read|Write|Edit|mcp__.+)$`) emits a PATH signal to the `mcp://<server>` node, the SAME node the static `core/mcp-tools` edge targets (and `mcpConfig` config-side discovery materialises), so a live tool call lights it deterministically, the runtime reports the exact tool name, no inference. Auto-loaded context (`CLAUDE.md` at session start) fires no tool event and stays invisible. Main-context owner is sessionized (`main:<session_id>`, bare `main` when the payload carries no `session_id`). Terminal `SubagentStop` carries `last_assistant_message` (the child's final report, the async response source) plus `agent_transcript_path`; sync completions carry the report as `tool_response.content` text blocks. Ignore `SubagentStop` orphans with empty `agent_type`. The main-context `Stop` (wired `*`, fires only when the MAIN response completes, never on a nap) maps to the node-less TURN-END form (`{ phase: "end", owner: main:<session_id>, turnEnd: true }`, §WS event: `node.activity`): `PostToolUse` only fires on a SUCCESSFUL tool call, so an interrupted or failed `Agent` call leaves a relation with no end frame, and the turn boundary is the moment it is provably dead (deliberately NOT an `ownerScope` release: main's node claims keep the v1 TTL-decay contract). The whole-session boundary `SessionEnd` (wired `*`, 2026-08-16) maps to the node-less SESSION-RELEASE form (`{ phase: "end", sessionScope: true, session: <session_id> }`, the codex main-`Stop` precedent): every owner grouped under the session releases, and the session journal gets its EXACT finalization boundary (§Session journal). `SessionStart` stays unwired on purpose: no session-start signal form exists in the wire vocabulary, and the journal derives identity + start time from the first frame |
 | `codex` | weak: `$name` tokens inside `UserPromptSubmit.prompt` (the adapter scans with the SAME shared `$`-token grammar the `dollar-skill` extractor uses, so activity and link extraction agree; sigil stripped, resolver drops unknowns) | `SubagentStart` (sticky start) / `SubagentStop` (owner-scoped end) keyed by `agent_id`; a NAMED `agent_type` resolves to its `.codex/agents/<name>.toml` node, the default generic `worker` resolves to nothing and drops. Spawn relations ride the `spawn_agent` Pre/PostToolUse pair (matcher-scoped alongside the MCP tool calls below): `tool_input.agent_type` + `message` (the prompt) on start, the child's `agent_id` parsed from the JSON-string `tool_response` on handoff (live-verified 2026-07-05); the response half is the stop's `last_assistant_message` (generic report path), the wait / close tool responses repeat it and stay disclaimed; no execution totals exist anywhere in the payloads. NO parent custody needed: a Codex parent never pauses (it blocks inside the wait tool), so terminal stops unwind bottom-up natively; an agent-context spawn rides a keep-alive heartbeat on the parent only so the resolver stamps `parentNodePath`. The bottom-up assumption has ONE hole (live-verified 2026-07-24): when a NAMED subagent itself spawns a nested `default` worker, Codex fires the inner worker's `SubagentStop` but DROPS the named subagent's own, so its owner never releases and the node glows until the 5-minute sticky decay. The main-context `Stop` closes the hole: it is wired (matcher-less) and maps to a node-less SESSION-RELEASE (`{ phase: "end", sessionScope: true, session }`, §WS event: `node.activity`) that releases every owner of `session_id` at turn end. Every codex signal is stamped with its `session_id` so the UI can group owners under it | none (`/` is Codex's own built-in namespace) | hook config `.codex/hooks.json` uses the same `{ hooks: { <Event>: [...] } }` convention as claude, so the `json-hooks` engine applies verbatim; payload near-identical to claude's, including the sessionized main owner (`main:<session_id>`). MCP usage IS mapped: a `PreToolUse` for an `mcp__<server>__<tool>` call (the matcher is widened to `^(spawn_agent|mcp__.+)$`) emits a PATH signal to the `mcp://<server>` node via the shared `mapMcpInvocation`, the SAME node `core/mcp-tools` and `mcpConfig` config-side discovery draw. Codex force-prefixes the hook tool name with `mcp__` (`codex-rs/core/src/tools/handlers/mcp.rs`, `ensure_mcp_prefix`), so the claude grammar (`parseMcpToolName`) parses it verbatim, deterministic, no inference; there is no end signal (the UI decay owns the span, like a skill), so only `PreToolUse` is widened. Markdown usage is NOT mapped, reads or writes: Codex has an internal `read_file` tool but hooks do not fire for it (PreToolUse fires for Bash / apply_patch / MCP, not `read_file`; expansion is an open upstream request), so read signals wait for that surface, and writes go through `apply_patch`, whose input is a patch body with no path argument (parsing it for `.md` targets is deferred alongside the opencode `apply_patch` gap) |
 | `antigravity` | invocation itself invisible (`/skill` injects the SKILL.md with no tool event, live-verified 2026-07-04), but a skill's `references/*.md` reads DO fire and light those resources | no on-disk agent files exist (subagents are runtime-only Prompt specs), so there is nothing to light; `conversationId` (present in EVERY payload) is the owner grouping key, and the conversation `Stop` (`terminationReason` present) maps to a node-less OWNER RELEASE only when the conversation is FULLY idle: live-verified 2026-07-05, an orchestrating conversation fires Stop with `fullyIdle: false` every time it naps while its subagents run (waking on their `send_message`), and those nap stops disclaim (a missing `fullyIdle` keeps releasing, older runtimes). Spawn relations are UNMAPPABLE on this runtime: `invoke_subagent` takes a `Subagents` array of runtime-only `{ Prompt, Role, TypeName, Workspace }` specs (types declared via `define_subagent`, no on-disk file), its completion returns NO child `conversationId`, and tool calls carry no ids, so there is nothing to correlate a spawn frame with; `send_message` carries full message text both directions keyed by `conversationId` (a future session-centric surface, unusable today without node anchors) | none; workflows (`.agent/workflows/*.md`) light when the agent FOLLOWS them (it `view_file`s the workflow file) | THREE mapped signals: `PreToolUse` tool `view_file` (`toolCall.args.AbsolutePath`, relativized against `workspacePaths[*]`) emitting PATH signals (markdown reads, skill resources, followed workflows all light through it); `PreToolUse` tool `call_mcp_tool` (the generic wrapper EVERY MCP invocation funnels through, live-verified 2026-07-11) emitting a PATH signal on the `mcp://<server>` node whose server is read from `toolCall.args.ServerName` (tool name in `.ToolName`, carried as `detail`), NOT parsed from the tool name as Claude / Codex do with `mcp__<server>__<tool>`; that is the SAME node `core/mcp-tools` draws from a skill's `tools:` frontmatter, and the ONLY way an Antigravity `mcp://` node lights (its MCP config is home-global, so there is no project-local config to materialise the node config-side); and `Stop` emitting the owner release. The `PreToolUse` matcher is `^(view_file|call_mcp_tool)$`. Markdown WRITES stay unmapped for now: the runtime ships write-capable tools (`write_to_file`, `create_file`, `edit_file` per the binary's tool catalog) but their hook arg shapes are not live-verified (the adapter standard is characterisation against real runs, and `view_file`'s `AbsolutePath` casing shows arg names cannot be assumed), so widening the matcher waits for a probe run. Payloads carry NO `hook_event_name`; events are distinguished STRUCTURALLY (`toolCall` = tool event, `invocationNum` = invocation pulse, `terminationReason` = Stop). Hook config `.agents/hooks.json` uses the NAMED-GROUP shape (`install.group`) with the FLAT entry shape on lifecycle events (`events[].entryShape`); the runtime spawns hook commands at the config's directory (`install.commandCwd: "config-dir"`); hooks stay neutral via exit 0 + empty stdout, which the bridge invariants already guarantee |
 | `agent-skills` via opencode | `tool.execute.before` tool `skill` (`args.name`), fires even for prose invocations (live-verified 2026-07-04, v1.17.11) | `chat.message` carries the NAMED `agent` + its own `sessionID` per subagent, and `chat.params` (REDUCED at the wiring level to `{ agent, sessionID }`, the user message it also carries never leaves the process) delivers the same identity BEFORE each model call, so the server's owner index learns the session's agent ahead of the turn's first `task` spawn (without it, `chat.message` fires only with the completed assistant message, after the whole delegation ran, and the first delegation anchored on a session capsule); `sessionID` is the owner key and `session.idle` maps to the node-less OWNER RELEASE (native end, fires only when a session truly finishes: the parent BLOCKS inside the `task` tool, no naps, live-verified 2026-07-05). Spawn relations ride the `task` tool pair: the before carries `input.callID` (the spawnId) + `args.subagent_type` / `args.prompt`, the after carries `output.metadata.sessionId` (the child's own owner) and the child's full final report inside `output.output`'s `<task_result>` wrapper (the response source). The task event never names the PARENT agent (only its sessionID), so every spawn emits the relation-only form and anchors on a session capsule, one per spawning session. **Delegation is one hop deep** (live-verified 2026-07-25): a `task` call issued from INSIDE a subagent session is refused by the runtime with a nesting limit, and a refused call fires the before but never the after, so that spawn gets a start frame and no end and lives out the client's TTL sweep. Every spawn whose parent is the main session completes normally. Consequence for the adapter: on this runtime an owner-scoped end is TERMINAL for the spawns that owner parents (the parent blocks inside `task`, so it cannot be idle while a child runs), unlike Claude, where the same frame can mean a nap. Per-message token usage exists on the bus (`message.updated`) but stays unaggregated (a high-frequency family) | dedicated `command.execute.before` hook (`{ command, sessionID }`, prose-invoked too) | in-process plugin (`plugin-file`, `.opencode/plugin/skill-map-activity.js`; BOTH `plugin/` and `plugins/` dirs load, install targets the singular). Markdown usage maps from tools `read`, `write` and `edit` (all carry `args.filePath`, relativized against the plugin context's `directory`; the tool name rides as `detail` so reads label apart from writes); `apply_patch` carries only `patchText` (no path argument) and stays unmapped until parsing the patch body is worth the weight. MCP tool calls map from `tool.execute.before` whose `input.tool` is a `<server>_<tool>` name (OpenCode's MCP naming, no explicit marker like Claude/Codex's `mcp__<server>__<tool>` or Antigravity's `call_mcp_tool` wrapper, live-verified 2026-07-11: a Notion call arrives as `notion_notion-create-pages`) to a PATH signal on `mcp://<server>` (the prefix before the first `_`, tool suffix as `detail`); since there is no explicit marker it fires for any underscore-bearing tool and leans on the resolver's node match to drop the misses (a built-in `read_mcp_resource` resolves to a non-existent `mcp://read` and is dropped). It lights the SAME node `core/mcp-tools` and the `mcpConfig` `opencode.json` discovery draw. The plugin registers ONLY the consumed hooks (with `tool.execute.after` wiring-filtered to `task`) and forwards `{ hook, directory, input, output? }` wrappers |
@@ -911,7 +1116,8 @@ Live-verified against real runs (2026-06-30). These inform each provider's
 This entire surface is **experimental** across spec v0.x: the capability shape
 (`provider.activity`), `serve.json`, the ingest route, and the `node.activity`
 event may tighten before a stable tag lands. The `agent.spawn` family, the
-execution-stats fields and endpoints, and the conversation-capture surface are
+execution-stats fields and endpoints, the conversation-capture surface, and the
+session journal (file layout, retention defaults, and the recording schema) are
 experimental additions under the same policy. Once promoted (a minor bump), the
 usual semantics apply: adding an optional manifest field, a new install kind, or a
 new `data` field is a minor bump; removing or renaming any of them is a major

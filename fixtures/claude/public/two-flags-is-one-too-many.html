@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Two flags is one too many</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Two flags is one too many</h1>
+
+  <p>One boolean config flag gives a system two states. A second flag does not add one more state, it doubles them. Four flags is sixteen. Nobody tests sixteen states.</p>
+
+  <h2>The second flag is the expensive one</h2>
+  <p>The first flag is cheap: on or off, both paths get exercised at some point. The second flag multiplies the first, so now there are four combinations, and the two where both flags are on and off together are the ones nobody thought to run. Each flag after that makes the untested corner bigger, not the same size.</p>
+
+  <h2>Flags outlive the reason they were added</h2>
+  <p>A flag usually goes in for a real short-term reason: roll out a change gradually, keep an old code path around during a migration, let one customer opt out. The reason expires. The flag does not. It sits in the config schema, still readable by anyone, still combinable with every flag added after it, long after the story behind it is gone.</p>
+
+  <h2>The default path is the only tested path</h2>
+  <p>In practice only the shipped default combination gets run in CI and in production. Every other combination is theoretical until a user or an incident report finds it. A flag that is "supported" but never exercised is not supported, it is untested code wearing a config option.</p>
+
+  <h2>When a flag is worth it</h2>
+  <p>Some flags earn their keep: a kill switch that turns a feature off in an emergency, or a guard in front of an irreversible operation like a destructive migration or a mass delete. Those flags are not about choice, they are about having an exit. Keep those. Delete the rest once their reason is gone.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

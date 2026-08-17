@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Comments rot, code does not</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Comments rot, code does not</h1>
+
+  <p>Code gets exercised every time it runs, so a broken line usually announces itself. A comment gets exercised by nobody. It can drift from the truth for years, sitting a few lines above code that no longer does what the comment claims, and nothing in the build will ever flag it.</p>
+
+  <h2>A stale comment is worse than no comment</h2>
+  <p>No comment forces you to read the code. A stale comment lets you skip that step and believe something false instead. It has the shape of documentation and the reliability of a rumor, and reviewers tend to trust it precisely because it looks authoritative. Silence is honest about what it does not know. A lying comment is not.</p>
+
+  <h2>Explain why, not what</h2>
+  <p>A comment that restates the line below it (`// increment i` above `i++`) adds a second thing that can go out of sync for zero benefit, the code already says what it does. The code cannot say why, though: why this order, why this exception, why the obvious approach was rejected. That is the only information a comment can carry that the code cannot carry on its own, so it is the only information worth spending a comment on.</p>
+
+  <h2>When a comment earns its place</h2>
+  <p>Some knowledge genuinely lives outside the code and needs to be pinned next to it: a non-obvious constraint from a spec or a regulator, a workaround for a bug in a dependency with a link to the issue tracker, an invariant that the type system cannot express but the next change must preserve. These comments survive because they describe something that is true regardless of how the surrounding code gets rewritten. Write them, and write them so the next person can verify the claim, not just take it on faith.</p>
+
+  <h2>Spotting a lying comment in review</h2>
+  <p>Read the comment first, form an expectation, then read the code and check whether it matches. A mismatch is a bug in the comment, and it needs the same fix as a mismatch in a test: correct it or delete it, do not leave it. Also treat any comment touching code in the diff as suspect by default, ask whether it still describes the new behavior or just survived the edit unread. A comment that nobody had to update in a change that clearly affects it is a comment nobody is actually maintaining.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

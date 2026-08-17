@@ -376,6 +376,16 @@ export interface IWsNodeActivityData {
    */
   detail?: string;
   /**
+   * Access classification for a RESOURCE frame
+   * (`spec/provider-activity.md` §WS event: `node.activity`): `'mcp'`
+   * when the node is an `mcp://` server (a tool invocation), `'read'`
+   * when it is a file a unit read. Absent for a UNIT's own execution
+   * (a skill / agent / command start). Stamped by the server-side
+   * resolver from the signal shape; consumed by the session index's
+   * step rows (typed internal steps).
+   */
+  access?: 'mcp' | 'read';
+  /**
    * The session id the frame's `owner` belongs to. A frame that carries
    * BOTH `owner` and `session` establishes that owner's session
    * membership, so a later session-scoped end can release every owner

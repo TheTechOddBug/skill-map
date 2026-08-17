@@ -85,6 +85,9 @@ type IStubDataSource = IDataSourcePort & {
   listIssues: ReturnType<typeof vi.fn>;
   getNodeActivity: ReturnType<typeof vi.fn>;
   clearNodeActivity: ReturnType<typeof vi.fn>;
+  clearSessionJournal: ReturnType<typeof vi.fn>;
+  getSessionJournal: ReturnType<typeof vi.fn>;
+  setSessionRecording: ReturnType<typeof vi.fn>;
   getNodeFindings: ReturnType<typeof vi.fn>;
   getNodeSummary: ReturnType<typeof vi.fn>;
   deleteNodeSummary: ReturnType<typeof vi.fn>;
@@ -207,6 +210,9 @@ function makeStubDataSource(): IStubDataSource {
       runs: [],
     }),
     clearNodeActivity: vi.fn().mockResolvedValue(undefined),
+    clearSessionJournal: vi.fn().mockResolvedValue(undefined),
+    getSessionJournal: vi.fn().mockResolvedValue({ sessions: [], recording: false }),
+    setSessionRecording: vi.fn().mockResolvedValue(true),
     getNodeFindings: vi.fn().mockResolvedValue({
       schemaVersion: '1',
       kind: 'findings',
@@ -3131,6 +3137,45 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
         ) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
+  });
+
+  it('observed-link-missing rows group under the "Observed in sessions" sub-header', async () => {
+    // Design-vs-reality grouping (spec/provider-activity.md, Session
+    // journal): the analyzer's rows render apart from the design-defect
+    // issues, under their own muted sub-header, with the SAME row
+    // anatomy (the shared ng-template), so they read as reality
+    // commenting on the design, never as code defects.
+    const { fixture } = await bootAiActions({
+      issues: [
+        makeIssue(),
+        makeIssue({
+          analyzerId: 'observed-link-missing',
+          severity: 'info',
+          message: 'Observed 3 invocations across 2 sessions; no declared link connects this node to the target.',
+          data: { target: 'mcp://notion' },
+        }),
+      ],
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const header = dom.querySelector('[data-testid="inspector-observed-sessions-header"]');
+    expect(header).not.toBeNull();
+    expect(header!.textContent).toContain('Observed in sessions');
+    const observedList = dom.querySelector(
+      '[data-testid="inspector-observed-sessions-list"]',
+    ) as HTMLElement;
+    expect(observedList.querySelectorAll('[data-testid="inspector-finding"]').length).toBe(1);
+    // Both lists render the shared row anatomy; the design row stays out
+    // of the observed group and vice versa.
+    expect(dom.querySelectorAll('[data-testid="inspector-finding"]').length).toBe(2);
+    expect(observedList.textContent).toContain('observed-link-missing');
+    expect(observedList.textContent).not.toContain('reference-broken');
+  });
+
+  it('the observed-sessions sub-header hides when no observed rows exist', async () => {
+    const { fixture } = await bootAiActions({ issues: [makeIssue()] });
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-observed-sessions-header"]'),
+    ).toBeNull();
   });
 
   it('an active issue-fixer job renders the row sparkles busy', async () => {

@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Delete code you love</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Delete code you love</h1>
+
+  <p>Deleting code feels like a loss. It is not. It is the one edit that makes a codebase smaller, and smaller is the only property that matters at 2am.</p>
+
+  <h2>Unused abstractions rot</h2>
+  <p>An interface with one implementation is a promise nobody asked for. It sits there implying flexibility until someone builds on it, and then it is load-bearing nonsense.</p>
+
+  <h2>Every line kept "just in case" is a line someone reads later</h2>
+  <p>Code is not free once it is written. Every function still in the repo gets scanned, half-understood, and stepped over by the next person hunting a bug. Dead code does not rest. It taxes.</p>
+
+  <h2>Version control already remembers</h2>
+  <p>Nothing is actually lost. Git has kept every version since the first commit. The "just in case" instinct is solving a problem that was solved decades ago, by a tool already running on your machine.</p>
+
+  <h2>The courage to delete</h2>
+  <p>Adding code feels productive. Deleting code feels risky, even when it is not. That asymmetry is why codebases only grow. Someone has to be willing to hit delete and trust the tests, or trust that there are none because nothing used it anyway.</p>
+
+  <h2>Small enough to fit in one head</h2>
+  <p>A codebase you can hold in your head is a codebase you can change with confidence. Every unused branch, unused flag, and unused helper is rent paid on a room nobody lives in.</p>
+
+  <h2>The checklist</h2>
+  <p>No caller, no test, and no ticket referencing it? Delete it today.</p>
+  <ul>
+    <li>No caller: grep for it. If nothing calls it, it is not "reachable, technically."</li>
+    <li>No test: if nothing verifies it, nobody will notice it is gone either.</li>
+    <li>No ticket: if no open work depends on it, "future plans" is just a feeling.</li>
+  </ul>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

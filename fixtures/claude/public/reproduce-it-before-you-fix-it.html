@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Reproduce it before you fix it</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Reproduce it before you fix it</h1>
+
+  <p>A bug report comes in. The instinct is to jump into the code and look for something wrong. But if you cannot make the bug happen on demand, you do not understand it yet. You are guessing, not fixing.</p>
+
+  <h2>A fix without a repro is a guess</h2>
+  <p>You read the stack trace, form a theory, change some code, and the bug seems to go away. Did you fix it, or did you just stop triggering it by accident? Without a reliable repro you cannot tell the difference. The bug can come back next week under conditions you never tested, and you will be back at square one, except now with extra code nobody understands.</p>
+
+  <h2>Shrink the repro</h2>
+  <p>A repro that needs twelve steps, a specific user account, and a Tuesday is barely a repro. It is too fragile to use and too slow to iterate on. Cut steps one at a time and check if the bug still shows up. Remove data, remove branches, remove services, until you are left with the smallest input that still triggers the failure. A small repro is not just convenient, it is also most of the diagnosis. Once the repro is five lines long, the cause is usually obvious.</p>
+
+  <h2>The repro outlives the bug</h2>
+  <p>Once you can trigger the bug reliably, write it down as a test before you touch the fix. The test is proof the bug exists, proof your fix works, and proof the bug does not come back later. Without that test, "fixed" is just a claim. With it, "fixed" is a fact you can rerun.</p>
+
+  <p>The reproduction is the real deliverable. The fix, once you have a tight repro, is usually the easy part.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

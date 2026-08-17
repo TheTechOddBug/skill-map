@@ -69,6 +69,32 @@ describe('claudeActivity.mapEvent', () => {
     ]);
   });
 
+  it('SessionEnd maps to the node-less SESSION-RELEASE form (exact journal finalization)', () => {
+    const signals = claudeActivity.mapEvent({
+      session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+      cwd: '/home/user/project',
+      hook_event_name: 'SessionEnd',
+      reason: 'clear',
+    });
+    // The codex main-Stop precedent: release every owner grouped under
+    // the session; the session journal finalizes on this frame.
+    assert.deepEqual(signals, [
+      {
+        phase: 'end',
+        sessionScope: true,
+        session: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+      },
+    ]);
+  });
+
+  it('SessionEnd without a session_id disclaims (nothing to release by)', () => {
+    const signals = claudeActivity.mapEvent({
+      hook_event_name: 'SessionEnd',
+      reason: 'other',
+    });
+    assert.equal(signals, null);
+  });
+
   it('Skill PreToolUse from the main context is owned by the SESSIONIZED main key', () => {
     const signals = claudeActivity.mapEvent({
       session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',

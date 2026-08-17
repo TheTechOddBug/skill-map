@@ -57,6 +57,9 @@ import { nameCollisionAnalyzer as _nameCollisionAnalyzer } from './core/analyzer
 import { nameMismatchAnalyzer as _nameMismatchAnalyzer } from './core/analyzers/name-mismatch/index.js';
 import { nameReservedAnalyzer as _nameReservedAnalyzer } from './core/analyzers/name-reserved/index.js';
 import { nodeStabilityAnalyzer as _nodeStabilityAnalyzer } from './core/analyzers/node-stability/index.js';
+import { observedLinkDeadAnalyzer as _observedLinkDeadAnalyzer } from './core/analyzers/observed-link-dead/index.js';
+import { observedLinkMissingAnalyzer as _observedLinkMissingAnalyzer } from './core/analyzers/observed-link-missing/index.js';
+import { observedNodeDeadAnalyzer as _observedNodeDeadAnalyzer } from './core/analyzers/observed-node-dead/index.js';
 import { referenceBrokenAnalyzer as _referenceBrokenAnalyzer } from './core/analyzers/reference-broken/index.js';
 import { referenceRedundantAnalyzer as _referenceRedundantAnalyzer } from './core/analyzers/reference-redundant/index.js';
 import { schemaViolationAnalyzer as _schemaViolationAnalyzer } from './core/analyzers/schema-violation/index.js';
@@ -546,6 +549,9 @@ const nameCollisionAnalyzer = { ..._nameCollisionAnalyzer, pluginId: 'core', ver
 const nameMismatchAnalyzer = { ..._nameMismatchAnalyzer, pluginId: 'core', version: VERSION };
 const nameReservedAnalyzer = { ..._nameReservedAnalyzer, pluginId: 'core', version: VERSION };
 const nodeStabilityAnalyzer = { ..._nodeStabilityAnalyzer, pluginId: 'core', version: VERSION };
+const observedLinkDeadAnalyzer = { ..._observedLinkDeadAnalyzer, pluginId: 'core', version: VERSION };
+const observedLinkMissingAnalyzer = { ..._observedLinkMissingAnalyzer, pluginId: 'core', version: VERSION };
+const observedNodeDeadAnalyzer = { ..._observedNodeDeadAnalyzer, pluginId: 'core', version: VERSION };
 const referenceBrokenAnalyzer = { ..._referenceBrokenAnalyzer, pluginId: 'core', version: VERSION };
 const referenceRedundantAnalyzer = { ..._referenceRedundantAnalyzer, pluginId: 'core', version: VERSION };
 const schemaViolationAnalyzer = { ..._schemaViolationAnalyzer, pluginId: 'core', version: VERSION };
@@ -1414,6 +1420,9 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       nameMismatchAnalyzer,
       nameReservedAnalyzer,
       nodeStabilityAnalyzer,
+      observedLinkDeadAnalyzer,
+      observedLinkMissingAnalyzer,
+      observedNodeDeadAnalyzer,
       referenceBrokenAnalyzer,
       referenceRedundantAnalyzer,
       schemaViolationAnalyzer,

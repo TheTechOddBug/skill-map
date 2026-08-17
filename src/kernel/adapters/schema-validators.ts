@@ -61,6 +61,7 @@ export type TSchemaName =
   | 'conformance-case'
   | 'history-stats'
   | 'map-view'
+  | 'session-recording'
   | 'extension-provider'
   | 'extension-provider-kind'
   | 'extension-extractor'
@@ -93,6 +94,7 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
   'conformance-case': 'schemas/conformance-case.schema.json',
   'history-stats': 'schemas/history-stats.schema.json',
   'map-view': 'schemas/map-view.schema.json',
+  'session-recording': 'schemas/session-recording.schema.json',
   'extension-provider': 'schemas/extensions/provider.schema.json',
   'extension-provider-kind': 'schemas/extensions/provider-kind.schema.json',
   'extension-extractor': 'schemas/extensions/extractor.schema.json',

@@ -6,7 +6,9 @@ import { EMPTY } from 'rxjs';
 import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
 
 import { WorkspaceView } from '../workspace-view';
+import { readStoredActiveSection } from '../workspace-view.storage';
 import { GraphView } from '../../graph-view/graph-view';
+import { ActivityPlaybackService } from '../../../../services/activity-playback';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
 import { FilterStoreService } from '../../../../services/filter-store';
 import { KindRegistryService } from '../../../../services/kind-registry';
@@ -167,14 +169,12 @@ function makeLensStub(lens: ILensHandles): LiveLensService {
     available: signal(true).asReadonly(),
     active: lens.active.asReadonly(),
     membership: lens.membership.asReadonly(),
-    windowMs: signal(5 * 60_000).asReadonly(),
     lensNodes: signal<INodeView[]>([]).asReadonly(),
     lensScan: signal<IScanResultApi | null>(null).asReadonly(),
     observedInvocations: signal([]).asReadonly(),
     observedSpawns: signal([]).asReadonly(),
     observedSpinePairs: signal<ReadonlySet<string>>(new Set()).asReadonly(),
     setActive: (value: boolean) => lens.active.set(value),
-    setWindow: () => undefined,
     reset: () => undefined,
   } as unknown as LiveLensService;
 }
@@ -668,6 +668,136 @@ describe('WorkspaceView activity sections', () => {
     expect(q(fixture, 'workspace-rail-toggle')).toBeNull();
     expect(q(fixture, 'workspace-section-files')).not.toBeNull();
     localStorage.removeItem('sm.workspace.rail-collapsed');
+    localStorage.removeItem('sm.workspace.rail-section');
+  });
+
+  it('the Sessions tab stays ENABLED during the lens and opens its panel', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const lens: ILensHandles = {
+      active: signal(true),
+      membership: signal<ReadonlySet<string>>(new Set(['a.md'])),
+    };
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], [], 1, lens);
+
+    // Contrast with Queue: same lens, opposite gating (this tab is the
+    // lens's own front door, so it must stay reachable).
+    const sessionsTab = q(fixture, 'workspace-section-sessions')!;
+    expect(q(fixture, 'workspace-section-queue')!.getAttribute('aria-disabled')).toBe('true');
+    expect(sessionsTab.getAttribute('aria-disabled')).toBeNull();
+
+    sessionsTab.click();
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* ignore Foblex-internal render glitches in jsdom */
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* same guard */
+    }
+    expect(q(fixture, 'sessions-view')).not.toBeNull();
+    expect(q(fixture, 'files-view')).toBeNull();
+    // No frames recorded in these DOM tests: the panel's own empty state.
+    expect(q(fixture, 'sessions-empty-none')).not.toBeNull();
+    // The search cluster is files-only chrome.
+    expect(q(fixture, 'workspace-search')).toBeNull();
+
+    localStorage.removeItem('sm.workspace.rail-collapsed');
+    localStorage.removeItem('sm.workspace.rail-section');
+  });
+
+  it('the sessions Play intent enters a lens replay scoped to the selection', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    // Seed the recorder through its own persistence: hydration is not
+    // gated on Real Time, so a stored tape is the cheapest way to hand
+    // the REAL recorder a session without a WS socket.
+    const t0 = 1_700_000_000_000;
+    localStorage.setItem(
+      'sm.live.recording',
+      JSON.stringify([
+        {
+          tMs: t0,
+          type: 'node.activity',
+          data: { nodePath: 'a.md', phase: 'start', owner: 'main:s1' },
+        },
+        {
+          tMs: t0 + 100,
+          type: 'node.activity',
+          data: { nodePath: 'a.md', phase: 'start', owner: 'main:other' },
+        },
+      ]),
+    );
+    const lens: ILensHandles = {
+      active: signal(false),
+      membership: signal<ReadonlySet<string>>(new Set()),
+    };
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], [], 1, lens);
+
+    // The rail gesture routes rail -> workspace -> graph view -> playback.
+    fixture.componentInstance.replaySession({ rootOwner: 'main:s1' }, 'Session 1');
+    const playback = TestBed.inject(ActivityPlaybackService);
+    expect(playback.active()).toBe(true);
+    // Scoped: only main:s1's frame, not the other session's.
+    expect(playback.total()).toBe(1);
+    expect(playback.scopeLabel()).toBe('Session 1');
+    // Entering from the rail turned the lens on.
+    expect(lens.active()).toBe(true);
+
+    playback.exit();
+    localStorage.removeItem('sm.live.recording');
+    localStorage.removeItem('sm.workspace.rail-collapsed');
+    localStorage.removeItem('sm.workspace.rail-section');
+  });
+
+  it('a step deep-link lands the replay ON that frame and PAUSED', async () => {
+    const t0 = 1_700_000_000_000;
+    localStorage.setItem(
+      'sm.live.recording',
+      JSON.stringify([
+        {
+          tMs: t0,
+          type: 'node.activity',
+          data: { nodePath: 'a.md', phase: 'start', owner: 'main:s1' },
+        },
+        {
+          tMs: t0 + 100,
+          type: 'node.activity',
+          data: { nodePath: 'a.md', phase: 'start', owner: 'main:s1', detail: 'Read', access: 'read' },
+        },
+      ]),
+    );
+    const lens: ILensHandles = {
+      active: signal(false),
+      membership: signal<ReadonlySet<string>>(new Set()),
+    };
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], [], 1, lens);
+
+    fixture.componentInstance.replaySession({ rootOwner: 'main:s1' }, 'Session 1', {
+      tMs: t0 + 100,
+      path: 'a.md',
+      detail: 'Read',
+      access: 'read',
+    });
+    const playback = TestBed.inject(ActivityPlaybackService);
+    expect(playback.active()).toBe(true);
+    // Landed on the step's frame, and PAUSED there: the operator asked
+    // to look at a moment, not to watch from it (user call 2026-08-16).
+    expect(playback.cursor()).toBe(1);
+    expect(playback.playing()).toBe(false);
+
+    playback.exit();
+    localStorage.removeItem('sm.live.recording');
+    localStorage.removeItem('sm.workspace.rail-collapsed');
+    localStorage.removeItem('sm.workspace.rail-section');
+  });
+
+  it('the stored rail section accepts sessions', () => {
+    localStorage.setItem('sm.workspace.rail-section', 'sessions');
+    expect(readStoredActiveSection()).toBe('sessions');
+    localStorage.setItem('sm.workspace.rail-section', 'bogus');
+    expect(readStoredActiveSection()).toBeNull();
     localStorage.removeItem('sm.workspace.rail-section');
   });
 });

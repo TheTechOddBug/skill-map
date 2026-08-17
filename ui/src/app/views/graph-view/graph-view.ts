@@ -70,7 +70,13 @@ import { DebugPerfService } from '../../services/debug-perf';
 import { A11yAnnouncerService } from '../../services/a11y-announcer';
 import { ActivityReadinessService } from '../../services/activity-readiness';
 import { ActivityPlaybackService } from '../../../services/activity-playback';
+import { ActivityRecorderService } from '../../../services/activity-recorder';
 import { LiveLensService } from '../../../services/live-lens';
+import {
+  filterTapeForSession,
+  type ISessionReplaySelection,
+  type ISessionStep,
+} from '../../../services/session-index';
 import { pathBasenameForLink } from '../../../services/path-basename';
 import { InspectorView } from '../inspector-view/inspector-view';
 import { MiddleMousePanDirective, type IMiddleMousePanTarget } from './middle-mouse-pan';
@@ -101,7 +107,6 @@ import { CLICK_DRAG_TOLERANCE_PX, setupNodeDrag } from './node-drag.controller';
 import { setupExpansion } from './expansion.controller';
 import { setupFollowActivity } from './follow-activity.controller';
 import { setupLiveLens } from './live-lens.controller';
-import { LiveLensControls } from './live-lens-controls/live-lens-controls';
 import { PlaybackBar } from './playback-bar/playback-bar';
 import { setupLayoutFit } from './layout-fit.controller';
 import { setupGraphPipeline } from './graph-pipeline';
@@ -167,7 +172,6 @@ const EMPTY_PATH_SET: ReadonlySet<string> = new Set();
     BranchCapBanner,
     ConversationDialog,
     GraphLayoutToolbar,
-    LiveLensControls,
     MapViewSwitcher,
     PlaybackBar,
     KindPalette,
@@ -246,6 +250,7 @@ export class GraphView implements OnInit {
   private readonly announcer = inject(A11yAnnouncerService);
   private readonly liveLens = inject(LiveLensService);
   protected readonly playback = inject(ActivityPlaybackService);
+  private readonly recorder = inject(ActivityRecorderService);
   private readonly activityReadiness = inject(ActivityReadinessService);
 
   private readonly flow = viewChild(FFlowComponent);
@@ -440,6 +445,48 @@ export class GraphView implements OnInit {
   protected readonly lensOn = this.liveLensCtl.active;
   /** Replay sub-mode of the lens (the fold drives what is painted). */
   protected readonly replayOn = this.playback.active;
+  /**
+   * Replay paused (user request 2026-08-16): stamps
+   * `graph--replay-paused` on the root so every execution animation
+   * (halo, ring, ribbon, badge pulse, edge hue, marching dashes)
+   * freezes its current frame via `animation-play-state`; hitting Play
+   * resumes them mid-cycle. Frozen narration, frozen dressing.
+   */
+  protected readonly replayPaused = computed(
+    () => this.playback.active() && !this.playback.playing(),
+  );
+  /**
+   * With no toolbar lens control left (user decision 2026-08-16), the
+   * lens exists only as the face of RECORD or REPLAY: when a replay
+   * exits (the transport's X, a deleted recording) and no recording is
+   * running, the lens leaves with it, back to the curated map. The
+   * falling edge is tracked by hand so a replay RE-entry (exit + enter
+   * inside one gesture, `replaySessionFromTape`) never observes one.
+   */
+  private wasReplaying = false;
+  private readonly lensStandDownEffect = effect(() => {
+    const replaying = this.playback.active();
+    const was = this.wasReplaying;
+    this.wasReplaying = replaying;
+    if (!was || replaying) return;
+    if (this.lensOn() && !this.recorder.recording()) this.liveLensCtl.toggle();
+  });
+
+  /**
+   * The inverse invariant (user call 2026-08-17): RECORDING implies the
+   * recording view. `startSessionRecording` handles the normal gesture;
+   * this effect covers every other way recording can become true with
+   * the lens down, today the F5 resume (the boot probe re-engages
+   * capture because the server never stopped, but the button saying
+   * Stop over the curated map read as a half-state). A running replay
+   * keeps the canvas: it is also a lens face, and the stand-down above
+   * returns to the recording view when it exits.
+   */
+  private readonly lensRecordingFaceEffect = effect(() => {
+    if (this.recorder.recording() && !this.lensOn() && !this.playback.active()) {
+      this.liveLensCtl.toggle();
+    }
+  });
 
   // Display switchers: while the lens is on, the template + overlay
   // controllers read the LENS pipeline; the main pipeline keeps
@@ -1070,9 +1117,26 @@ export class GraphView implements OnInit {
     this.camera.runAnimatedFit();
   }
 
-  /** Toolbar handler: enter/exit the Live lens (snapshot + restore live in the controller). */
-  protected toggleLiveLens(): void {
-    this.liveLensCtl.toggle();
+  /**
+   * Record gesture (the Sessions rail's control, user decision
+   * 2026-08-16 replacing every toolbar lens control): start capturing
+   * the tape AND watch it live. The watermark reset makes the lens
+   * canvas narrate from THIS moment (each recording starts fresh, which
+   * is also why the eraser button could retire); an in-flight replay
+   * stands down first, recording means watching the present.
+   */
+  startSessionRecording(): void {
+    if (!this.liveLens.available()) return;
+    if (this.playback.active()) this.playback.exit();
+    this.liveLens.reset();
+    this.recorder.start();
+    if (!this.lensOn()) this.liveLensCtl.toggle();
+  }
+
+  /** Stop capturing; back to the curated map unless a replay is running. */
+  stopSessionRecording(): void {
+    this.recorder.stop();
+    if (this.lensOn() && !this.playback.active()) this.liveLensCtl.toggle();
   }
 
   resetLayout(): void {
@@ -1610,17 +1674,43 @@ export class GraphView implements OnInit {
   );
 
   /**
-   * Enter/exit the replay sub-mode. Its control only renders while the
-   * lens is on (the replay IS a mode of the lens), so entering never
-   * has to open the lens itself; exiting returns to the LIVE lens, and
-   * a full lens exit takes the replay down via the service invariant.
+   * Sessions-rail gesture (via `SESSION_REPLAY_INTENT`): enter the lens
+   * if needed and replay the tape scoped to one session or one agent
+   * branch. The tape is re-filtered HERE, at gesture time, so a session
+   * still running replays everything up to this moment. An empty scope
+   * never enters: the playback's delete-recording auto-exit watches the
+   * recorder, not the frozen tape, so an empty scoped replay would have
+   * no way to stand itself down.
    */
-  protected toggleReplay(): void {
-    if (this.playback.active()) {
-      this.playback.exit();
-      return;
+  replaySessionFromTape(selection: ISessionReplaySelection, label: string, step?: ISessionStep): void {
+    if (!this.liveLens.available()) return;
+    // Journal-hydrated sessions carry their own frames (the client
+    // recorder never saw them); tape-native sessions re-filter live.
+    const source = selection.sourceFrames ?? this.recorder.events();
+    const tape = filterTapeForSession(source, selection);
+    if (tape.length === 0) return;
+    if (this.playback.active()) this.playback.exit();
+    if (!this.lensOn()) this.liveLensCtl.toggle();
+    this.playback.enter(
+      tape,
+      label,
+      selection.sourceFrames !== undefined
+        ? { kind: 'journal' }
+        : { kind: 'tape-session', rootOwner: selection.rootOwner },
+    );
+    // Step deep-link (user request 2026-08-16): a step row's click lands
+    // the replay ON that frame and PAUSED there (`enter` auto-plays, so
+    // the pause undoes it): the operator asked to look at a moment, not
+    // to watch from it; Play resumes forward when they want. Identity is
+    // `(tMs, path)` within the scoped tape; a step the filter somehow
+    // excluded degrades to a paused from-the-start replay.
+    if (step !== undefined) {
+      const at = tape.findIndex(
+        (e) => e.type === 'node.activity' && e.tMs === step.tMs && e.data.nodePath === step.path,
+      );
+      if (at >= 0) this.playback.seek(at);
+      this.playback.pause();
     }
-    this.playback.enter();
   }
 
   // ── Follow the Activity ─────────────────────────────────────────────

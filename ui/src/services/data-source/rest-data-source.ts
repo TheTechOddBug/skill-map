@@ -56,6 +56,7 @@ import type {
   IActivityNodeDetailApi,
   IActivitySpawnDetailApi,
   IActivitySummaryApi,
+  ISessionRecordingApi,
   IActivityUninstallEnvelopeApi,
   IAgentSkillInstallEnvelopeApi,
   IAgentSkillInstallStatusApi,
@@ -572,6 +573,43 @@ export class RestDataSource implements IDataSourcePort {
       await firstValueFrom(
         this.http.delete(`${BASE}/activity/node/${encodeNodePath(path)}`),
       );
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
+  /** `GET /api/activity/sessions`, the journal read-back for the Sessions tab. */
+  async getSessionJournal(): Promise<{ sessions: ISessionRecordingApi[]; recording: boolean }> {
+    try {
+      const body = await firstValueFrom(
+        this.http.get<{ sessions: ISessionRecordingApi[]; recording: boolean }>(
+          `${BASE}/activity/sessions`,
+        ),
+      );
+      return { sessions: body.sessions, recording: body.recording };
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
+  /** `POST /api/activity/sessions/recording`, the capture toggle. */
+  async setSessionRecording(recording: boolean): Promise<boolean> {
+    try {
+      const body = await firstValueFrom(
+        this.http.post<{ recording: boolean }>(`${BASE}/activity/sessions/recording`, {
+          recording,
+        }),
+      );
+      return body.recording;
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
+  /** `DELETE /api/activity/sessions` (204-style), the journal wipe. */
+  async clearSessionJournal(): Promise<void> {
+    try {
+      await firstValueFrom(this.http.delete(`${BASE}/activity/sessions`));
     } catch (err) {
       throw this.translateError(err);
     }

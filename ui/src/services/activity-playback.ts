@@ -11,6 +11,13 @@
  * fold (`computePlaybackState`) over `(tape, cursor)`, so scrubbing is
  * instant and nothing here re-injects frames into the live services.
  *
+ * A caller may hand `enter()` its own pre-filtered tape (the Sessions
+ * rail replaying ONE session or one agent branch) plus a scope label
+ * the transport bar shows; the default stays the whole recording. The
+ * delete-recording auto-exit deliberately keeps watching the RECORDER,
+ * not the frozen tape: a scoped replay narrates a slice of a recording
+ * that still exists, and stands down only when THAT is erased.
+ *
  * The stepper is a self-rearming timeout (armed only while playing),
  * auto-pausing on the last event; play() from the end restarts from
  * the beginning. Cursor conventions follow the fold: -1 = before the
@@ -21,6 +28,16 @@ import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angul
 
 import { computePlaybackState, type IPlaybackState } from './activity-playback-state';
 import { ActivityRecorderService, type TRecordedEvent } from './activity-recorder';
+
+/**
+ * Frame provenance of one replay (see `ActivityPlaybackService.source`).
+ * `tape-session` carries the session's root owner so the transport can
+ * re-filter the live tape at delete time.
+ */
+export type TReplaySource =
+  | { kind: 'whole-tape' }
+  | { kind: 'tape-session'; rootOwner: string }
+  | { kind: 'journal' };
 
 /** Fixed playback cadence: one recorded event per wall-clock second. */
 export const PLAYBACK_STEP_MS = 1000;
@@ -45,6 +62,21 @@ export class ActivityPlaybackService {
   private readonly _tape = signal<readonly TRecordedEvent[]>([]);
   readonly tape = this._tape.asReadonly();
 
+  private readonly _scopeLabel = signal<string | null>(null);
+  /** What this replay narrates ("Session 3"); null = the whole tape. */
+  readonly scopeLabel = this._scopeLabel.asReadonly();
+
+  private readonly _source = signal<TReplaySource>({ kind: 'whole-tape' });
+  /**
+   * Where this replay's frames came from (2026-08-17): drives the
+   * transport trash's meaning. `tape-session` (a Sessions-rail row the
+   * client tape holds) erases THAT session from the tape;
+   * `whole-tape` keeps the historical clear; `journal` (frames from
+   * `.skill-map/sessions/`, nothing of them in this browser) has
+   * nothing to erase, the trash hides.
+   */
+  readonly source = this._source.asReadonly();
+
   readonly total = computed(() => this._tape().length);
 
   /** The fold at the current cursor: what the map shows while replaying. */
@@ -61,16 +93,36 @@ export class ActivityPlaybackService {
     // Settings row, the transport's own shortcut, anything later), the
     // frozen tape describes something that no longer exists, so the
     // mode stands down. The invariant lives HERE so no call site has to
-    // remember to pair `clear()` with `exit()`.
+    // remember to pair `clear()` with `exit()`. TRANSITION-based (a
+    // delete empties a previously non-empty recorder), NOT state-based:
+    // a journal-sourced replay (the Sessions tab hydrating from
+    // `.skill-map/sessions/`, 2026-08-16) legitimately enters while the
+    // client tape is ALREADY empty and must survive; the purge gesture
+    // still stands every replay down because it transitions the
+    // recorder to empty.
+    let prevRecorderSize = this.recorder.events().length;
     effect(() => {
-      if (this._active() && this.recorder.events().length === 0) this.exit();
+      const size = this.recorder.events().length;
+      const emptied = prevRecorderSize > 0 && size === 0;
+      prevRecorderSize = size;
+      if (emptied && this._active()) this.exit();
     });
   }
 
-  /** Snapshot the tape, rewind, and start playing from the top. */
-  enter(): void {
+  /**
+   * Snapshot the tape, rewind, and start playing from the top.
+   * `events` scopes the replay to a pre-filtered slice (default: the
+   * whole recording); `scopeLabel` names that slice for the transport.
+   */
+  enter(
+    events?: readonly TRecordedEvent[],
+    scopeLabel?: string,
+    source?: TReplaySource,
+  ): void {
     if (this._active()) return;
-    this._tape.set(this.recorder.events());
+    this._tape.set(events ?? this.recorder.events());
+    this._scopeLabel.set(scopeLabel ?? null);
+    this._source.set(source ?? { kind: 'whole-tape' });
     this._cursor.set(-1);
     this._active.set(true);
     this.play();
@@ -81,6 +133,8 @@ export class ActivityPlaybackService {
     this.pause();
     this._active.set(false);
     this._tape.set([]);
+    this._scopeLabel.set(null);
+    this._source.set({ kind: 'whole-tape' });
     this._cursor.set(-1);
   }
 

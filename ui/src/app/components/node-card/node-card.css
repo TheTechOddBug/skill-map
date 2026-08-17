@@ -188,6 +188,19 @@
     animation: sm-exec-ribbon 2.4s linear infinite;
   }
 
+  /* Replay paused: the graph view stamps `graph--replay-paused` on its
+     root while the replay transport is paused (user request
+     2026-08-16), and the card's own exec motion freezes with the
+     narration. Unconditional under the context on purpose: a card with
+     no running animation ignores the property, so no `--executing`
+     guard is needed (and `:host-context()` composes poorly with a
+     classed `:host()`). */
+  :host-context(.graph--replay-paused),
+  :host-context(.graph--replay-paused)::before,
+  :host-context(.graph--replay-paused) .sm-gnode__exec-detail {
+    animation-play-state: paused;
+  }
+
   @keyframes sm-exec-spin {
     to {
       --sm-exec-angle: 360deg;

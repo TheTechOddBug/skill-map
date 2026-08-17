@@ -19,6 +19,18 @@
   gap: 0.45rem;
 }
 
+/* Sub-header of the observed-in-sessions group: muted label scale (the
+   hidden-buckets line's vocabulary) so the group reads as commentary,
+   not as a second card. */
+.inspector__findings-subheader {
+  margin: 0.35rem 0 0;
+  font-size: var(--sm-fs-xs);
+  font-weight: 600;
+  color: var(--p-text-muted-color);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .inspector__finding {
   padding: 0.55rem 0.7rem;
   border-left: 3px solid var(--p-content-border-color);
