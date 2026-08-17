@@ -29,7 +29,8 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
+import { resolveSpecRoot } from '../../kernel/adapters/schema-validators.js';
+import { loadAjv } from '../../kernel/util/ajv-interop.js';
 import { writeFileAtomicExclusive } from '../../kernel/util/atomic-write.js';
 import { SKILL_MAP_DIR } from '../../core/paths/db-path.js';
 
@@ -158,16 +159,14 @@ function readParsedFile(): Record<string, unknown> | null {
  * sandbox) or when the payload is off-shape.
  */
 function validateOrDefault(parsed: Record<string, unknown>): IUserSettings {
-  const validators = tryLoadValidators();
-  if (validators === null) return defaultSettings();
+  const validator = tryGetValidator();
+  if (validator === null) return defaultSettings();
   try {
-    const result = validators.validate<IUserSettings>('user-settings', parsed);
-    if (!result.ok) return defaultSettings();
-    return result.data;
+    if (!validator(parsed)) return defaultSettings();
+    return parsed as unknown as IUserSettings;
   } catch {
-    // The loader compiles per schema on first use, so a corrupt spec
-    // install can surface here instead of inside `tryLoadValidators`;
-    // the settings store stays non-fatal either way.
+    // A corrupt spec install can surface at first validation; the
+    // settings store stays non-fatal either way.
     return defaultSettings();
   }
 }
@@ -219,11 +218,8 @@ export function writeUserSettings(patch: Partial<IUserSettings>): void {
   try {
     const current = readUserSettings();
     const merged = mergeSettings(current, patch);
-    const validators = tryLoadValidators();
-    if (validators !== null) {
-      const result = validators.validate<IUserSettings>('user-settings', merged);
-      if (!result.ok) return;
-    }
+    const validator = tryGetValidator();
+    if (validator !== null && !validator(merged)) return;
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     writeFileAtomicExclusive(path, JSON.stringify(merged, null, 2) + '\n');
   } catch {
@@ -391,16 +387,36 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Defensive wrapper around `loadSchemaValidators`. The kernel boot path
- * normally never fails to compile schemas, but a corrupt spec install
- * (e.g. a missing schema file) would throw. The settings store must
- * stay non-fatal, so a load failure degrades to "no validator", which
- * the callers translate to the defaulted envelope.
+ * Memoized validator for `user-settings.schema.json` ONLY.
+ *
+ * Deliberately NOT the kernel's full validator catalog
+ * (`loadSchemaValidators`): this store runs on the BOOT path of every
+ * verb (telemetry consent, update-check throttle), and the catalog
+ * build sweeps + registers every spec schema to validate one
+ * three-field file. The schema is self-contained (no `$ref`, no
+ * `format`), so a single `ajv.compile` over the one file preserves the
+ * documented AJV-validated posture at a fraction of the cost, and the
+ * ajv module itself loads lazily through the `loadAjv` seam.
+ *
+ * Non-fatal like its predecessor: a corrupt spec install (missing
+ * schema file, unresolvable spec package) degrades to "no validator",
+ * which the callers translate to the defaulted envelope.
  */
-function tryLoadValidators(): ReturnType<typeof loadSchemaValidators> | null {
+type TSettingsValidator = (data: unknown) => boolean;
+
+let cachedValidator: TSettingsValidator | null | undefined;
+
+function tryGetValidator(): TSettingsValidator | null {
+  if (cachedValidator !== undefined) return cachedValidator;
   try {
-    return loadSchemaValidators();
+    const { Ajv2020 } = loadAjv();
+    const ajv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true });
+    const schema: unknown = JSON.parse(
+      readFileSync(join(resolveSpecRoot(), 'schemas/user-settings.schema.json'), 'utf8'),
+    );
+    cachedValidator = ajv.compile(schema as object) as TSettingsValidator;
   } catch {
-    return null;
+    cachedValidator = null;
   }
+  return cachedValidator;
 }

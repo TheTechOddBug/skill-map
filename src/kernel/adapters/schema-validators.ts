@@ -38,12 +38,12 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
-import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
+import type { Ajv2020, ValidateFunction } from 'ajv/dist/2020.js';
 
 import type { IProvider, IBuiltInManifest } from '../extensions/index.js';
 import type { ExtensionKind } from '../registry.js';
 import { KNOWN_SLOT_NAMES } from '../types/view-catalog.js';
-import { applyAjvFormats } from '../util/ajv-interop.js';
+import { applyAjvFormats, loadAjv } from '../util/ajv-interop.js';
 
 type TAjv = InstanceType<typeof Ajv2020>;
 
@@ -207,6 +207,7 @@ export function loadSchemaValidators(): ISchemaValidators {
 
 function buildSchemaValidators(): ISchemaValidators {
   const specRoot = resolveSpecRoot();
+  const { Ajv2020 } = loadAjv();
   const ajv: TAjv = new Ajv2020({
     strict: false,
     allErrors: true,
@@ -411,6 +412,7 @@ export function buildProviderFrontmatterValidator(
   providers: ReadonlyArray<IBuiltInManifest<IProvider>>,
 ): IProviderFrontmatterValidator {
   const specRoot = resolveSpecRoot();
+  const { Ajv2020 } = loadAjv();
   const ajv: TAjv = new Ajv2020({
     strict: false,
     allErrors: true,
@@ -562,8 +564,13 @@ function registerProviderAuxiliarySchemas(
  * Locate the installed `@skill-map/spec` package root. Prefer Node's
  * resolver (handles npm workspaces + published installs symmetrically)
  * and fall back to the package's `package.json` directory.
+ *
+ * Exported: `cli/util/user-settings-store.ts` compiles its OWN single
+ * schema against this root (deliberately NOT through the full
+ * validator catalog, see the store's doc) and must resolve the spec
+ * package the same canonical way.
  */
-function resolveSpecRoot(): string {
+export function resolveSpecRoot(): string {
   const require = createRequire(import.meta.url);
   // @skill-map/spec's exports field doesn't expose package.json, but
   // ./index.json is always exported and always lives at the package root.

@@ -29,12 +29,12 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
-import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
+import type { ValidateFunction } from 'ajv/dist/2020.js';
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { IRegisteredAnnotationKey } from '../../../../kernel/types/annotation-catalog.js';
 import type { Issue } from '../../../../kernel/types.js';
-import { applyAjvFormats } from '../../../../kernel/util/ajv-interop.js';
+import { applyAjvFormats, loadAjv } from '../../../../kernel/util/ajv-interop.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { ANNOTATION_FIELD_UNKNOWN_TEXTS } from './annotation-field-unknown.texts.js';
@@ -202,6 +202,7 @@ function indexNamespacedContributions(
   contributions: readonly IRegisteredAnnotationKey[],
 ): Map<string, Map<string, TValidator>> {
   const out = new Map<string, Map<string, TValidator>>();
+  const { Ajv2020 } = loadAjv();
   const ajv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true });
   applyAjvFormats(ajv);
   for (const entry of contributions) {

@@ -16,13 +16,13 @@ import * as nodeFs from 'node:fs';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { Ajv2020 } from 'ajv/dist/2020.js';
+import type { Ajv2020 } from 'ajv/dist/2020.js';
 
 import type { IDiscoveredPlugin, IPluginManifest } from '../../types/plugin.js';
 import type { ExtensionKind } from '../../registry.js';
 import { PLUGIN_LOADER_TEXTS, SPEC_GITHUB_BASE } from '../../i18n/plugin-loader.texts.js';
 import { reportSchemaExtendsFindings } from '../../jobs/findings-schema.js';
-import { applyAjvFormats } from '../../util/ajv-interop.js';
+import { applyAjvFormats, loadAjv } from '../../util/ajv-interop.js';
 import { tx } from '../../util/tx.js';
 import { HOOK_TRIGGERS } from '../../extensions/hook.js';
 import { describe, fail, isRecord } from './id-utils.js';
@@ -133,6 +133,7 @@ export function validateAnnotationContributions(
     };
   }
   try {
+    const { Ajv2020 } = loadAjv();
     const ajv: TAjv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true });
     applyAjvFormats(ajv);
     ajv.compile(schema);

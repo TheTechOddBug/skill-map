@@ -31,13 +31,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
-import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
+import type { ValidateFunction } from 'ajv/dist/2020.js';
 import { dump as yamlDump, CORE_SCHEMA } from 'js-yaml';
 
 import { loadYamlSafe } from '../util/safe-yaml.js';
 
 import { writeFileAtomicExclusive } from '../util/atomic-write.js';
-import { applyAjvFormats } from '../util/ajv-interop.js';
+import { applyAjvFormats, loadAjv } from '../util/ajv-interop.js';
 import {
   FORBIDDEN_KEYS,
   stripPrototypePollution,
@@ -307,6 +307,7 @@ let cachedValidator: ValidateFunction | null = null;
 
 function getSidecarValidator(): ValidateFunction {
   if (cachedValidator) return cachedValidator;
+  const { Ajv2020 } = loadAjv();
   const ajv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true });
   applyAjvFormats(ajv);
   const specRoot = resolveSpecRoot();

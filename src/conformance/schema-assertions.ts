@@ -21,11 +21,11 @@
  * the circularity a conformance suite exists to avoid.
  */
 
-import { Ajv2020, type AnySchema, type ValidateFunction } from 'ajv/dist/2020.js';
+import type { Ajv2020, AnySchema, ValidateFunction } from 'ajv/dist/2020.js';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { applyAjvFormats } from '../kernel/util/ajv-interop.js';
+import { applyAjvFormats, loadAjv } from '../kernel/util/ajv-interop.js';
 
 /** Compiled-AJV cache, keyed by spec root: one tree walk per process. */
 const ajvByRoot = new Map<string, Ajv2020>();
@@ -45,6 +45,7 @@ function specAjv(specRoot: string): Ajv2020 {
   const cached = ajvByRoot.get(specRoot);
   if (cached !== undefined) return cached;
 
+  const { Ajv2020 } = loadAjv();
   const ajv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true });
   // Same format vocabulary the kernel registers. Without it AJV
   // silently IGNORES `format: "uri"` and friends, so the runner would

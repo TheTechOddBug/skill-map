@@ -25,12 +25,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
-import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
+import type { ValidateFunction } from 'ajv/dist/2020.js';
 import { loadYamlSafe } from '../util/safe-yaml.js';
 
 import { stripPrototypePollution } from '../util/strip-prototype-pollution.js';
 
-import { applyAjvFormats } from '../util/ajv-interop.js';
+import { applyAjvFormats, loadAjv } from '../util/ajv-interop.js';
 
 export interface IParsedSidecar {
   /** Path to the `.sm` file on disk (absolute). */
@@ -174,6 +174,7 @@ let cachedSidecarValidator: ValidateFunction | null = null;
 
 function getSidecarValidator(): ValidateFunction {
   if (cachedSidecarValidator) return cachedSidecarValidator;
+  const { Ajv2020 } = loadAjv();
   const ajv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true });
   applyAjvFormats(ajv);
 

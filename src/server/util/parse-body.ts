@@ -46,7 +46,9 @@
  * sidecar/parse.ts).
  */
 
-import { Ajv2020, type ErrorObject, type ValidateFunction } from 'ajv/dist/2020.js';
+import type { Ajv2020, ErrorObject, ValidateFunction } from 'ajv/dist/2020.js';
+
+import { loadAjv } from '../../kernel/util/ajv-interop.js';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
 
@@ -91,6 +93,7 @@ export interface IBodyValidatorOptions<T> {
 let sharedAjv: InstanceType<typeof Ajv2020> | null = null;
 
 function getSharedAjv(): InstanceType<typeof Ajv2020> {
+  const { Ajv2020 } = loadAjv();
   sharedAjv ??= new Ajv2020({ strict: false, allErrors: false });
   return sharedAjv;
 }

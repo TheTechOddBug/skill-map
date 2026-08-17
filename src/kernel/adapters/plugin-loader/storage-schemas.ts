@@ -10,11 +10,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
+import type { Ajv2020, ValidateFunction } from 'ajv/dist/2020.js';
 
 import type { IPluginManifest, IPluginStorageSchema } from '../../types/plugin.js';
 import { PLUGIN_LOADER_TEXTS } from '../../i18n/plugin-loader.texts.js';
-import { applyAjvFormats } from '../../util/ajv-interop.js';
+import { applyAjvFormats, loadAjv } from '../../util/ajv-interop.js';
 import { tx } from '../../util/tx.js';
 import { KV_SCHEMA_KEY } from '../plugin-store.js';
 import { describe, isInsidePlugin } from './id-utils.js';
@@ -109,6 +109,7 @@ export function compilePluginSchema(
     return { ok: false, phase: 'read', errDescription: describe(err) };
   }
   try {
+    const { Ajv2020 } = loadAjv();
     const ajv: TAjv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true });
     applyAjvFormats(ajv);
     const compiled = ajv.compile(raw as object) as ValidateFunction & {
