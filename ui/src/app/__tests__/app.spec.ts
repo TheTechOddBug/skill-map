@@ -313,7 +313,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     }),
   clearNodeActivity: () => Promise.resolve(),
   clearSessionJournal: () => Promise.resolve(),
-  getSessionJournal: () => Promise.resolve({ sessions: [], recording: false, captureLevel: 'mcp' }),
+  getSessionJournal: () => Promise.resolve({ sessions: [], recording: false, captureLevel: 'mcp', shellCapture: false }),
   setCaptureLevel: () => Promise.resolve('mcp'),
   setSessionRecording: (recording: boolean) => Promise.resolve(recording),
   getSpawnRecord: () => Promise.resolve(null),

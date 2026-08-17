@@ -1642,10 +1642,11 @@ export interface IActivityRecentExecutionApi {
   /**
    * Invocation kind for the directional entries (those carrying
    * `caller` / `target`): `'mcp'` is a tool call (has `detail`, the
-   * tool), `'read'` is a file read (has NO `detail`). Absent on a plain
+   * tool), `'read'` is a file read (has NO `detail`), `'shell'` a
+   * heuristic path sighting in a shell command. Absent on a plain
    * execution of the node itself (no `caller` / `target`).
    */
-  kind?: 'mcp' | 'read' | 'write';
+  kind?: 'mcp' | 'read' | 'write' | 'shell';
 }
 
 /**

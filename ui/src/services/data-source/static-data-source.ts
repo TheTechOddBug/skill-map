@@ -879,8 +879,9 @@ export class StaticDataSource implements IDataSourcePort {
     sessions: ISessionRecordingApi[];
     recording: boolean;
     captureLevel: string;
+    shellCapture: boolean;
   }> {
-    return { sessions: [], recording: false, captureLevel: 'mcp' };
+    return { sessions: [], recording: false, captureLevel: 'mcp', shellCapture: false };
   }
 
   async setCaptureLevel(_level: string): Promise<string> {

@@ -340,6 +340,7 @@ export const INSPECTOR_VIEW_TEXTS = {
       mcp: 'MCP tool call',
       read: 'File read',
       write: 'File write',
+      shell: 'Sighted in a shell command',
     },
     /**
      * Three-state provenance filter over the merged timeline (user

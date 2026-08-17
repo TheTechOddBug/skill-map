@@ -173,6 +173,10 @@
       "additionalProperties": false,
       "description": "Live-activity preferences (see provider-activity.md). Holds the conversation-capture consent gate and the session-journal toggle today; extends additively as further activity preferences land.",
       "properties": {
+        "shellCapture": {
+          "type": "boolean",
+          "description": "Install-side opt-in for the capture ladder's `shell` rung (provider-activity.md, Capture level): when true, `sm activity install claude` renders the extra `PreToolUse` Bash hook and the `shell` selector position unlocks. Default false; command lines are operator content, so this is never on by default. Project-LOCAL (settings.local.json); written by the install command's --shell / --no-shell flags."
+        },
         "captureLevel": {
           "type": "string",
           "enum": ["executions", "reads", "writes", "mcp", "shell"],

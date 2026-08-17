@@ -36,6 +36,7 @@ import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import type { IProvider } from '../../kernel/extensions/index.js';
+import { readConfigValue, writeConfigValue } from '../../core/config/helper.js';
 import {
   activityInstallStatus,
   installActivityBridge,
@@ -65,6 +66,13 @@ interface IInstallBody {
   provider: string;
   /** Server-enforced consent: mutations refuse 412 without `true`. */
   confirm?: boolean;
+  /**
+   * Shell-rung opt-in mirror of the CLI `--shell`/`--no-shell` pair
+   * (spec provider-activity.md, Capture level rung 5): present persists
+   * `activity.shellCapture` before rendering; absent respects the
+   * stored choice.
+   */
+  shellCapture?: boolean;
 }
 
 const INSTALL_BODY_SCHEMA = {
@@ -74,6 +82,7 @@ const INSTALL_BODY_SCHEMA = {
   properties: {
     provider: { type: 'string', minLength: 1 },
     confirm: { type: 'boolean' },
+    shellCapture: { type: 'boolean' },
   },
 } as const;
 
@@ -101,6 +110,12 @@ export function registerActivityInstallRoutes(app: Hono, deps: IRouteDeps): void
     const provider = requireSupported(deps, body.provider);
     requireConsent(body, provider, SERVER_TEXTS.activityInstallConfirmRequired);
     try {
+      if (body.shellCapture !== undefined) {
+        writeConfigValue('activity.shellCapture', body.shellCapture, {
+          cwd: deps.runtimeContext.cwd,
+          target: 'project-local',
+        });
+      }
       await installActivityBridge(deps.runtimeContext.cwd, provider);
     } catch (err) {
       throw buildIoFailure(SERVER_TEXTS.activityInstallFailed, err);
@@ -202,6 +217,17 @@ function buildStatusEnvelope(
   }
   const install = provider.activity!.install;
   const status = activityInstallStatus(deps.runtimeContext.cwd, provider);
+  // Count the events that WOULD render under the current opt-ins (the
+  // engine's own filter), not the raw descriptor length: an opt-in
+  // event the operator never enabled is not part of this install.
+  const shellOn =
+    readConfigValue<boolean>('activity.shellCapture', {
+      cwd: deps.runtimeContext.cwd,
+      default: false,
+    }) === true;
+  const renderable = (install.kind === 'json-hooks' ? (install.events ?? []) : []).filter(
+    (event) => event.optIn === undefined || (event.optIn === 'shell' && shellOn),
+  );
   return {
     provider: provider.id,
     supported: true,
@@ -209,6 +235,6 @@ function buildStatusEnvelope(
     configPath: install.configPath,
     configWired: status.configWired,
     bridgePresent: status.bridgePresent,
-    events: install.kind === 'json-hooks' ? (install.events?.length ?? 0) : 0,
+    events: renderable.length,
   };
 }

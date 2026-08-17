@@ -18,7 +18,7 @@ function bootstrap(overrides?: {
     overrides?.setCaptureLevel ?? vi.fn((level: string) => Promise.resolve(level));
   const getSessionJournal =
     overrides?.getSessionJournal ??
-    vi.fn().mockResolvedValue({ sessions: [], recording: false, captureLevel: 'reads' });
+    vi.fn().mockResolvedValue({ sessions: [], recording: false, captureLevel: 'reads', shellCapture: false });
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [{ provide: DATA_SOURCE, useValue: { setCaptureLevel, getSessionJournal } }],

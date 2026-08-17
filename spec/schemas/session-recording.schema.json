@@ -99,7 +99,7 @@
         "sticky": { "type": "boolean" },
         "keepAlive": { "type": "boolean" },
         "detail": { "type": "string" },
-        "access": { "type": "string", "enum": ["mcp", "read", "write"] }
+        "access": { "type": "string", "enum": ["mcp", "read", "write", "shell"] }
       }
     },
     "AgentSpawnData": {

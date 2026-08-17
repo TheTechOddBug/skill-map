@@ -419,6 +419,9 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   // operator moves at record time (spec provider-activity.md, Capture
   // level); committed, one person's depth choice would follow the repo.
   'activity.captureLevel',
+  // The shell rung's install opt-in: command lines are operator
+  // content, so the choice is per-operator, never a committed policy.
+  'activity.shellCapture',
   'ui.liveUpdates',
   'ui.realtimeActivity',
   'ui.showRuntimeAgents',

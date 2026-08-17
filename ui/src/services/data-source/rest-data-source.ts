@@ -583,6 +583,7 @@ export class RestDataSource implements IDataSourcePort {
     sessions: ISessionRecordingApi[];
     recording: boolean;
     captureLevel: string;
+    shellCapture: boolean;
   }> {
     try {
       const body = await firstValueFrom(
@@ -590,12 +591,14 @@ export class RestDataSource implements IDataSourcePort {
           sessions: ISessionRecordingApi[];
           recording: boolean;
           captureLevel: string;
+          shellCapture: boolean;
         }>(`${BASE}/activity/sessions`),
       );
       return {
         sessions: body.sessions,
         recording: body.recording,
         captureLevel: body.captureLevel,
+        shellCapture: body.shellCapture,
       };
     } catch (err) {
       throw this.translateError(err);

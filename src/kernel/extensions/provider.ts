@@ -596,7 +596,7 @@ export interface IActivitySignal {
    * derives `"mcp"` from the path prefix regardless. Ignored on NAME
    * signals (a unit's own execution carries no access class).
    */
-  access?: 'read' | 'write';
+  access?: 'read' | 'write' | 'shell';
   /** Signal phase, see `TActivityPhase`. */
   phase: TActivityPhase;
   /**
@@ -792,6 +792,14 @@ export interface IActivityInstallEvent {
    * regex `^(Skill|Agent)$`). Omitted = the event's match-all form.
    */
   matcher?: string;
+  /**
+   * Marks the event as OPT-IN (spec `provider.schema.json`): the
+   * install renders it only when the matching operator choice is on
+   * (`'shell'` -> the project-local `activity.shellCapture` key, set by
+   * `sm activity install --shell`; provider-activity.md, Capture level
+   * rung 5). Omitted = always rendered.
+   */
+  optIn?: 'shell';
   /**
    * Entry shape the runtime expects for THIS event's array. `'wrapped'`
    * (default): the `{ matcher?, hooks: [{ type, command }] }` group

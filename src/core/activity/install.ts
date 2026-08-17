@@ -30,6 +30,7 @@ import {
   defaultActivityBridgePath,
   defaultProjectActivityDir,
 } from '../paths/db-path.js';
+import { readConfigValue } from '../config/helper.js';
 import { ensureScopeGitignore } from '../scope-gitignore.js';
 import { BRIDGE_PACKAGE_JSON, renderActivityBridge } from './bridge-template.js';
 import {
@@ -126,7 +127,16 @@ export async function installActivityBridge(cwd: string, provider: IProvider): P
     }
     return;
   }
-  const events: readonly IActivityInstallEvent[] = install.events ?? [];
+  // Opt-in filter (spec provider-activity.md, Capture level rung 5): an
+  // event marked `optIn: 'shell'` renders only while the project-local
+  // `activity.shellCapture` key is on. Reading the key HERE (not a flag
+  // threaded in) is what makes a bare re-install respect the stored
+  // choice instead of silently dropping the rung on refresh.
+  const shellOn =
+    readConfigValue<boolean>('activity.shellCapture', { cwd, default: false }) === true;
+  const events: readonly IActivityInstallEvent[] = (install.events ?? []).filter(
+    (event) => event.optIn === undefined || (event.optIn === 'shell' && shellOn),
+  );
   refreshHookWiring(join(cwd, install.configPath), events, bridgeCommand(provider.id, install), containerOf(install));
 
   const bridgePath = defaultActivityBridgePath(cwd);

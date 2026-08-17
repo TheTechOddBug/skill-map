@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
 
+import { removeConfigValue, writeConfigValue } from '../../../core/config/helper.js';
 import {
   createServer,
   type IServerOptions,
@@ -175,6 +176,20 @@ describe('GET /api/activity/install, status probe', () => {
       // journal finalization, 2026-08-16).
       assert.equal(envelope.events, 7);
     });
+  });
+
+  it('claude events count follows the shell opt-in: 7 without the key, 8 with it', async () => {
+    // The envelope reports the RENDERED surface, not the raw descriptor:
+    // the opt-in Bash rung joins the count only while the key is on.
+    writeConfigValue('activity.shellCapture', true, { cwd: root.fixtureRoot, target: 'project-local' });
+    try {
+      await bootAndUse(async (handle) => {
+        const envelope = (await (await getStatus(handle, 'claude')).json()) as IStatusEnvelope;
+        assert.equal(envelope.events, 8);
+      });
+    } finally {
+      removeConfigValue('activity.shellCapture', { cwd: root.fixtureRoot, target: 'project-local' });
+    }
   });
 
   it('codex: second provider with an adapter surfaces ITS descriptor', async () => {

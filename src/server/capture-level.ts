@@ -58,6 +58,7 @@ export function activityFrameRank(data: INodeActivityEventData): number {
   if (data.access === undefined) return RANK.executions;
   if (data.access === 'read') return RANK.reads;
   if (data.access === 'write') return RANK.writes;
+  if (data.access === 'shell') return RANK.shell;
   return RANK.mcp;
 }
 

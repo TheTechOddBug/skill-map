@@ -339,7 +339,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   }),
   clearNodeActivity: vi.fn().mockResolvedValue(undefined),
   clearSessionJournal: vi.fn().mockResolvedValue(undefined),
-  getSessionJournal: vi.fn().mockResolvedValue({ sessions: [], recording: false, captureLevel: 'mcp' }),
+  getSessionJournal: vi.fn().mockResolvedValue({ sessions: [], recording: false, captureLevel: 'mcp', shellCapture: false }),
   setCaptureLevel: vi.fn().mockResolvedValue('mcp'),
   setSessionRecording: vi.fn().mockResolvedValue(true),
   getSpawnRecord: vi.fn().mockResolvedValue(null),

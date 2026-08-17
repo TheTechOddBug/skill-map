@@ -64,7 +64,7 @@ export interface ISessionStep {
   /** Finer label when reported: the MCP tool, the read/write tool, the invoking tool. */
   readonly detail?: string;
   /** Resource access class; absent = the unit's own execution. */
-  readonly access?: 'mcp' | 'read' | 'write';
+  readonly access?: 'mcp' | 'read' | 'write' | 'shell';
 }
 
 export interface ISessionAgentNode {

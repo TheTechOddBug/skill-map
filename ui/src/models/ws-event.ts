@@ -384,7 +384,7 @@ export interface IWsNodeActivityData {
    * resolver from the signal shape; consumed by the session index's
    * step rows (typed internal steps).
    */
-  access?: 'mcp' | 'read' | 'write';
+  access?: 'mcp' | 'read' | 'write' | 'shell';
   /**
    * The session id the frame's `owner` belongs to. A frame that carries
    * BOTH `owner` and `session` establishes that owner's session

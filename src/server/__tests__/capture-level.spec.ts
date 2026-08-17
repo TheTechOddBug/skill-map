@@ -42,6 +42,7 @@ describe('capture-level ladder', () => {
     assert.equal(activityFrameRank(frame({ access: 'read' })), 2);
     assert.equal(activityFrameRank(frame({ access: 'write' })), 3);
     assert.equal(activityFrameRank(frame({ access: 'mcp' })), 4);
+    assert.equal(activityFrameRank(frame({ access: 'shell' })), 5);
   });
 
   it('the live cell gates frames above its level and moves live', () => {
@@ -57,6 +58,11 @@ describe('capture-level ladder', () => {
 
     state.set('mcp');
     assert.equal(state.passes(frame({ access: 'mcp' })), true);
+    // The default rung keeps shell sightings out; only rung 5 admits them.
+    assert.equal(state.passes(frame({ access: 'shell' })), false);
     assert.equal(state.current(), 'mcp');
+
+    state.set('shell');
+    assert.equal(state.passes(frame({ access: 'shell' })), true);
   });
 });

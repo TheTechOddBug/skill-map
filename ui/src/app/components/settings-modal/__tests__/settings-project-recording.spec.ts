@@ -41,7 +41,7 @@ describe('SettingsProjectRealtime recording row', () => {
   ): Promise<import('@angular/core/testing').ComponentFixture<Host>> {
     getSessionJournal = vi
       .fn()
-      .mockResolvedValue({ sessions: Array(journalSessions).fill({}), recording: false, captureLevel: 'mcp' });
+      .mockResolvedValue({ sessions: Array(journalSessions).fill({}), recording: false, captureLevel: 'mcp', shellCapture: false });
     TestBed.configureTestingModule({
       providers: [
         {

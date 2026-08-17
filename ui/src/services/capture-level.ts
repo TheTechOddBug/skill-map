@@ -40,6 +40,19 @@ export class CaptureLevelService {
   /** A move is in flight; selectors disable to avoid racing echoes. */
   readonly busy = this._busy.asReadonly();
 
+  private readonly _shellCapture = signal(false);
+  /**
+   * The install-side shell opt-in (spec §Capture level rung 5): the
+   * selector's fifth position unlocks only while this is on. Hydrated
+   * from the journal envelope alongside the level.
+   */
+  readonly shellCapture = this._shellCapture.asReadonly();
+
+  /** Adopt the install-side opt-in learned from a journal read-back. */
+  hydrateShellCapture(on: boolean): void {
+    this._shellCapture.set(on);
+  }
+
   /** Adopt a level learned from a journal read-back (no request). */
   hydrate(level: string): void {
     if (isCaptureLevel(level)) this._level.set(level);
@@ -48,8 +61,9 @@ export class CaptureLevelService {
   /** Fetch the live level (surfaces that open without the Sessions tab). */
   async refresh(): Promise<void> {
     try {
-      const { captureLevel } = await this.dataSource.getSessionJournal();
+      const { captureLevel, shellCapture } = await this.dataSource.getSessionJournal();
       this.hydrate(captureLevel);
+      this.hydrateShellCapture(shellCapture);
     } catch {
       // Best-effort (demo mode, dead server): keep the last known level.
     }

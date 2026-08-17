@@ -189,11 +189,13 @@ export class SessionsView {
 
   private async refreshJournal(): Promise<void> {
     try {
-      const { sessions, captureLevel } = await this.dataSource.getSessionJournal();
+      const { sessions, captureLevel, shellCapture } = await this.dataSource.getSessionJournal();
       this.journalRecordings.set(sessions);
-      // The envelope carries the live ladder position: hydrate the
-      // shared service so the selector needs no extra request.
+      // The envelope carries the live ladder position + the shell
+      // opt-in: hydrate the shared service so the selector needs no
+      // extra request.
       this.captureLevelSvc.hydrate(captureLevel);
+      this.captureLevelSvc.hydrateShellCapture(shellCapture);
     } catch {
       // Best-effort (demo mode, server down): the tape still lists.
     }

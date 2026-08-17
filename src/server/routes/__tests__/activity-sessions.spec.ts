@@ -13,6 +13,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { removeConfigValue, writeConfigValue } from '../../../core/config/helper.js';
 import { defaultProjectSessionsDir } from '../../../core/paths/db-path.js';
 import { createServer, type IServerHandle } from '../../index.js';
 import type { IServerOptions } from '../../options.js';
@@ -249,6 +250,48 @@ describe('POST /api/activity/sessions/recording', () => {
       assert.deepEqual(await moved.json(), { captureLevel: 'executions' });
     });
     rmSync(join(scopeRoot, '.skill-map', 'settings.local.json'), { force: true });
+  });
+
+  it('rung 5 needs the install opt-in: shell refused without the key, accepted with it', async () => {
+    // Without `activity.shellCapture` the POST answers the unchanged
+    // level (same refusal dialect as the recording lock) and the GET
+    // envelope reports the opt-in as off.
+    await bootAndUse(async (handle) => {
+      const refused = await fetch(url(handle, '/api/activity/capture-level'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ level: 'shell' }),
+      });
+      assert.deepEqual(await refused.json(), { captureLevel: 'mcp' }); // unchanged
+
+      const envelope = (await (await fetch(url(handle, '/api/activity/sessions'))).json()) as {
+        shellCapture: boolean;
+      };
+      assert.equal(envelope.shellCapture, false);
+    });
+
+    // Flip the opt-in through the real write path (the install flag /
+    // BFF install route both go through `writeConfigValue`, which mints
+    // the per-checkout grant a hand-written settings.local.json lacks).
+    writeConfigValue('activity.shellCapture', true, { cwd: scopeRoot, target: 'project-local' });
+    try {
+      await bootAndUse(async (handle) => {
+        const envelope = (await (await fetch(url(handle, '/api/activity/sessions'))).json()) as {
+          shellCapture: boolean;
+        };
+        assert.equal(envelope.shellCapture, true);
+
+        const moved = await fetch(url(handle, '/api/activity/capture-level'), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ level: 'shell' }),
+        });
+        assert.deepEqual(await moved.json(), { captureLevel: 'shell' });
+      });
+    } finally {
+      removeConfigValue('activity.shellCapture', { cwd: scopeRoot, target: 'project-local' });
+      rmSync(join(scopeRoot, '.skill-map', 'settings.local.json'), { force: true });
+    }
   });
 
   it('the master switch off refuses to engage: the response answers with the EFFECTIVE state', async () => {

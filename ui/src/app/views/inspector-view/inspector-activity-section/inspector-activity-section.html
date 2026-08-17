@@ -84,6 +84,8 @@
                                 class="pi inspector__activity-type-icon"
                                 [class.pi-wrench]="kind === 'mcp'"
                                 [class.pi-file]="kind === 'read'"
+                                [class.pi-file-edit]="kind === 'write'"
+                                [class.pi-code]="kind === 'shell'"
                                 role="img"
                                 [attr.aria-label]="texts.activity.recentKind[kind]"
                                 [pTooltip]="texts.activity.recentKind[kind]"

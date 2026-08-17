@@ -13,6 +13,7 @@ import { dirname, join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
 
 import type { IProvider } from '../../../kernel/extensions/index.js';
+import { writeConfigValue } from '../../config/helper.js';
 import {
   ACTIVITY_BRIDGE_REL,
   defaultActivityBridgePath,
@@ -176,6 +177,36 @@ describe('core/activity install engine', () => {
     for (const command of hookCommandsOf(readConfig(cwd))) {
       assert.equal(command, `node ${ACTIVITY_BRIDGE_REL} claude`);
     }
+  });
+
+  it('an opt-in event renders only while its key is on; re-install after key-off removes it', async () => {
+    const gated = makeProvider();
+    (gated.activity!.install as { events: unknown[] }).events = [
+      { event: 'PreToolUse', matcher: '^(Skill|Agent|Read)$' },
+      { event: 'PreToolUse', matcher: '^Bash$', optIn: 'shell' },
+    ];
+
+    // Key off (default): the opt-in event does not render.
+    await installActivityBridge(cwd, gated);
+    let hooks = readConfig(cwd)['hooks'] as Record<string, unknown[]>;
+    assert.equal(JSON.stringify(hooks['PreToolUse']).includes('^Bash$'), false);
+
+    // Key on (via the real write path, which mints the local-key grant):
+    // a re-install renders it; a further BARE re-install preserves it.
+    writeConfigValue('activity.shellCapture', true, { cwd, target: 'project-local' });
+    await installActivityBridge(cwd, gated);
+    hooks = readConfig(cwd)['hooks'] as Record<string, unknown[]>;
+    assert.equal(JSON.stringify(hooks['PreToolUse']).includes('^Bash$'), true);
+    await installActivityBridge(cwd, gated);
+    hooks = readConfig(cwd)['hooks'] as Record<string, unknown[]>;
+    assert.equal(JSON.stringify(hooks['PreToolUse']).includes('^Bash$'), true);
+
+    // Key off again: remove-then-merge drops the event on re-install.
+    writeConfigValue('activity.shellCapture', false, { cwd, target: 'project-local' });
+    await installActivityBridge(cwd, gated);
+    hooks = readConfig(cwd)['hooks'] as Record<string, unknown[]>;
+    assert.equal(JSON.stringify(hooks['PreToolUse']).includes('^Bash$'), false);
+    assert.equal(JSON.stringify(hooks['PreToolUse']).includes(ACTIVITY_BRIDGE_REL), true);
   });
 
   it('reinstall refreshes a stale wiring in place (remove-then-merge)', async () => {

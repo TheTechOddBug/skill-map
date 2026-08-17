@@ -21,6 +21,6 @@ export const CAPTURE_LEVEL_TEXTS = {
     reads: 'Also file reads',
     writes: 'Also file writes and edits',
     mcp: 'Also MCP tool calls (the full surface, default)',
-    shell: 'Reserved: shell-command capture is not available yet',
+    shell: 'Paths sighted in shell commands (needs: sm activity install claude --shell)',
   },
 } as const;

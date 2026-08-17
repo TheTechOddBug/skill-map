@@ -75,7 +75,15 @@ export function mergeActivityHooks(
 
   for (const spec of events) {
     const entries = ensureEntryArray(hooks, spec.event);
-    if (entries.some((entry) => entryCarriesMarker(entry, marker))) {
+    // Wired-already probe per SPEC identity (event + matcher), not per
+    // event name: a descriptor may carry two specs under one event with
+    // different matchers (claude's base PreToolUse + the opt-in Bash
+    // rung), and the first one merged must not swallow the second.
+    if (
+      entries.some(
+        (entry) => entryCarriesMarker(entry, marker) && entry.matcher === spec.matcher,
+      )
+    ) {
       alreadyWired.push(spec.event);
       continue;
     }

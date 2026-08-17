@@ -63,6 +63,7 @@ function makeFixture(init?: {
   /** Server-journal recordings the hydration fetch resolves. */
   journal?: ISessionRecordingApi[];
   journalCaptureLevel?: string;
+  shellCapture?: boolean;
   dismissedNotes?: string[];
 }) {
   const recording = signal(init?.recording ?? false);
@@ -93,7 +94,7 @@ function makeFixture(init?: {
   const stopRecording = vi.fn(() => recording.set(false));
   const getSessionJournal = vi
     .fn()
-    .mockResolvedValue({ sessions: init?.journal ?? [], recording: false, captureLevel: init?.journalCaptureLevel ?? 'mcp' });
+    .mockResolvedValue({ sessions: init?.journal ?? [], recording: false, captureLevel: init?.journalCaptureLevel ?? 'mcp', shellCapture: init?.shellCapture ?? false });
   const setCaptureLevel = vi.fn((level: string) => Promise.resolve(level));
   const getPreferences = vi
     .fn()
@@ -347,6 +348,26 @@ describe('SessionsView', () => {
     open.fixture.detectChanges();
     await hydrated(open.fixture);
     expect(open.setCaptureLevel).toHaveBeenCalledWith('executions');
+  });
+
+  it('the shell option unlocks only with the install opt-in (envelope shellCapture)', async () => {
+    // Without the opt-in the fifth position is disabled: clicking it
+    // never reaches the service.
+    const locked = makeFixture({});
+    await hydrated(locked.fixture);
+    expect(TestBed.inject(CaptureLevelService).shellCapture()).toBe(false);
+    clickLevelOption(locked.fixture, 4);
+    locked.fixture.detectChanges();
+    expect(locked.setCaptureLevel).not.toHaveBeenCalled();
+
+    // With it, the same click moves the ladder to shell.
+    const open = makeFixture({ shellCapture: true });
+    await hydrated(open.fixture);
+    expect(TestBed.inject(CaptureLevelService).shellCapture()).toBe(true);
+    clickLevelOption(open.fixture, 4);
+    open.fixture.detectChanges();
+    await hydrated(open.fixture);
+    expect(open.setCaptureLevel).toHaveBeenCalledWith('shell');
   });
 
   it('mounts the capture-level selector and hydrates the shared service from the envelope', async () => {

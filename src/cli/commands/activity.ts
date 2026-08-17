@@ -56,6 +56,7 @@ import { ACTIVITY_TEXTS } from '../i18n/activity.texts.js';
 import { ACTIVITY_BRIDGE_REL } from '../util/db-path.js';
 import { confirm } from '../util/confirm.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { readConfigValue, writeConfigValue } from '../../core/config/helper.js';
 import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 
@@ -132,6 +133,25 @@ export class ActivityInstallCommand extends SmCommand {
 
   provider = Option.String({ required: true });
   yes = Option.Boolean('-y,--yes', false);
+  /**
+   * Shell-rung opt-in pair (spec provider-activity.md, Capture level
+   * rung 5): `--shell` persists `activity.shellCapture: true`
+   * (project-local) BEFORE rendering, `--no-shell` retires it; neither
+   * flag = the stored choice is respected (a bare re-install never
+   * silently drops the rung).
+   */
+  shell = Option.Boolean('--shell', { description: 'Opt in the shell capture rung (renders the extra Bash hook; command lines are parsed for paths, never captured).' });
+
+  /**
+   * Persist the flag pair when given, then answer the stored choice
+   * (see the option doc: a bare re-install respects it).
+   */
+  private resolveShellOptIn(cwd: string): boolean {
+    if (this.shell !== undefined) {
+      writeConfigValue('activity.shellCapture', this.shell, { cwd, target: 'project-local' });
+    }
+    return readConfigValue<boolean>('activity.shellCapture', { cwd, default: false }) === true;
+  }
 
   protected async run(): Promise<number> {
     const ansi = this.ansiFor('stdout');
@@ -146,8 +166,13 @@ export class ActivityInstallCommand extends SmCommand {
     }
     const install = provider.activity.install;
     const ctx = defaultRuntimeContext();
+    const shellOn = this.resolveShellOptIn(ctx.cwd);
     const events: readonly IActivityInstallEvent[] =
-      install.kind === 'json-hooks' ? (install.events ?? []) : [];
+      install.kind === 'json-hooks'
+        ? (install.events ?? []).filter(
+            (event) => event.optIn === undefined || (event.optIn === 'shell' && shellOn),
+          )
+        : [];
 
     // Consent: both shapes write into territory skill-map does not own
     // (a vendor hooks file, or a plugin dir the runtime auto-loads).

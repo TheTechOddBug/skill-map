@@ -477,9 +477,11 @@ Broadcast over `/ws` in the common envelope of
   alone; unit detail renders as a transient badge on the executing card that
   decays with the glow.
 - `access` (optional): classifies a RESOURCE frame, `"mcp"` when the node is an
-  `mcp://` server (a tool call), `"read"` when it is a file a unit read, or
+  `mcp://` server (a tool call), `"read"` when it is a file a unit read,
   `"write"` when the unit wrote / edited it (2026-08-17, the capture-level
-  ladder's third rung). Absent on a UNIT's own execution (a skill / agent /
+  ladder's third rung), or `"shell"` for a HEURISTIC path sighting parsed
+  out of a shell command (the ladder's fifth rung; never folded into
+  observed relations). Absent on a UNIT's own execution (a skill / agent /
   command start). The resolver derives the resource-vs-unit split from the
   signal SHAPE, a PATH signal is a resource access, a NAME signal (`kind` +
   `name`) is a unit execution, so a unit reading another unit's file still
@@ -1091,9 +1093,23 @@ per event, cheap enough that the hooks always install their full surface):
 3. `writes` (+ levels below): `access: "write"` frames.
 4. `mcp` (+ levels below): `access: "mcp"` frames. THE DEFAULT, matching
    the full capture surface the hooks have always fed.
-5. `shell` (+ levels below): RESERVED. Paths parsed out of shell commands;
-   no capture exists yet, and when it lands it additionally requires an
-   install-side opt-in (privacy: command lines are operator content).
+5. `shell` (+ levels below): paths parsed HEURISTICALLY out of shell
+   commands (2026-08-17, claude-only v1: a `PreToolUse` hook on `Bash`,
+   rendered ONLY when the operator opted in at install time,
+   `sm activity install claude --shell`, persisted as the project-local
+   `activity.shellCapture` key; `--no-shell` retires it). Double opt-in
+   by design: command lines are operator content, so the rung demands
+   BOTH the install flag and the selector, and `POST
+   /api/activity/capture-level` refuses `shell` while the install key is
+   off (answering the unchanged level). The command text itself NEVER
+   travels: the adapter extracts `.md` path tokens from the command
+   (quotes stripped, URL-shaped tokens ignored, deduped, at most 5 per
+   command), emits one PATH signal per token with `detail: "Bash"` and
+   `access: "shell"`, and drops the rest. A shell frame is a SIGHTING,
+   not evidence: it lights the map and lands in recordings, but the
+   observed-relations fold ignores the class (a command can name files
+   it never touches and touch files it never names) and it never counts
+   as an execution.
 
 The active level is a SERVER-side filter at the ingest seam, applied to
 resolved frames BEFORE stats, run history, conversation capture, the
@@ -1102,7 +1118,7 @@ happen for skill-map, so the live map (Real Time) and every recording see
 the same truth. Classification of a resolved frame: `agent.spawn` and any
 `node.activity` without `access` (custody, lifecycle, turn / session
 bounds included) rank as `executions`; otherwise the frame ranks as its
-`access` class.
+`access` class (`shell` frames rank 5).
 
 Persistence and control: the level lives in the `activity.captureLevel`
 project-LOCAL config key (default `mcp`), read at serve boot;

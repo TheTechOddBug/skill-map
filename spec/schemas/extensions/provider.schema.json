@@ -348,6 +348,11 @@
                     "minLength": 1,
                     "description": "Optional matcher in the provider's own grammar (e.g. a Claude tool regex `^(Skill|Agent)$`). Omitted = the event's match-all form."
                   },
+                  "optIn": {
+                    "type": "string",
+                    "enum": ["shell"],
+                    "description": "Marks the event as OPT-IN: the install renders it only when the matching operator choice is on (`shell` -> the project-local `activity.shellCapture` key, set by `sm activity install --shell`; provider-activity.md, Capture level rung 5). Omitted = always rendered."
+                  },
                   "entryShape": {
                     "type": "string",
                     "enum": [

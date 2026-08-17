@@ -3,7 +3,7 @@
 '@skill-map/cli': minor
 ---
 
-New capture-level ladder: one cumulative runtime knob (`executions` < `reads` < `writes` < `mcp` < `shell`, default `mcp`) filtering resolved activity at ingest before stats, journal and broadcast, moved live via `POST /api/activity/capture-level` and persisted project-local (`activity.captureLevel`). Adapters now stamp `access: "write"` on write-shaped tools, recordings carry their minimum `captureLevel`, and the UI gains a selector beside Record plus a Settings mirror. `shell` is reserved.
+New capture-level ladder: one cumulative runtime knob (`executions` < `reads` < `writes` < `mcp` < `shell`, default `mcp`) filtering resolved activity at ingest before stats, journal and broadcast, moved live via `POST /api/activity/capture-level` and persisted project-local (`activity.captureLevel`). Adapters now stamp `access: "write"` on write-shaped tools, recordings carry their minimum `captureLevel`, and the UI gains a selector beside Record plus a Settings mirror.
 
 ## User-facing
 

@@ -73,6 +73,27 @@ describe('mergeActivityHooks', () => {
     assert.equal(JSON.stringify(settings), snapshot);
   });
 
+  it('two specs under one event with different matchers both merge, idempotently', () => {
+    // The wired-already probe keys on spec identity (event + matcher),
+    // not event name: claude's base PreToolUse spec plus the opt-in
+    // Bash rung must land as two entries, and a re-merge of the same
+    // pair must change nothing.
+    const twoSpecs = [
+      { event: 'PreToolUse', matcher: '^(Skill|Agent)$' },
+      { event: 'PreToolUse', matcher: '^Bash$' },
+    ];
+    const settings: Record<string, unknown> = {};
+    const first = mergeActivityHooks(settings, twoSpecs, COMMAND, MARKER);
+    assert.equal(first.changed, true);
+    const hooks = settings['hooks'] as Record<string, unknown[]>;
+    assert.equal(hooks['PreToolUse']?.length, 2);
+
+    const snapshot = JSON.stringify(settings);
+    const second = mergeActivityHooks(settings, twoSpecs, COMMAND, MARKER);
+    assert.equal(second.changed, false);
+    assert.equal(JSON.stringify(settings), snapshot);
+  });
+
   it('starts from an empty document (fresh project, no settings.json)', () => {
     const settings: Record<string, unknown> = {};
     const result = mergeActivityHooks(settings, EVENTS, COMMAND, MARKER);

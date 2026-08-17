@@ -34,7 +34,7 @@ import type { IRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { readSessionJournalDetailed } from '../../kernel/session-journal/index.js';
 import type { ActivityJournalService } from '../activity-journal.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
-import { writeConfigValue } from '../../core/config/helper.js';
+import { readConfigValue, writeConfigValue } from '../../core/config/helper.js';
 import {
   CAPTURE_LEVELS,
   type CaptureLevelState,
@@ -113,6 +113,10 @@ export function registerActivitySessionsRoute(
       // The live ladder position, so the level selector hydrates
       // (spec §Capture level).
       captureLevel: deps.captureLevel.current(),
+      // The shell rung's install-side opt-in, unlocking the selector's
+      // fifth position (read fresh so an install in another terminal
+      // reflects on the next fetch).
+      shellCapture: shellCaptureOn(deps),
     });
   });
 
@@ -141,6 +145,12 @@ export function registerActivitySessionsRoute(
     if (deps.journal.isRecording()) {
       return c.json({ captureLevel: deps.captureLevel.current() });
     }
+    // The shell rung demands the install-side opt-in too (spec
+    // §Capture level rung 5): refused the same way, the unchanged
+    // effective level.
+    if (body.level === 'shell' && !shellCaptureOn(deps)) {
+      return c.json({ captureLevel: deps.captureLevel.current() });
+    }
     deps.captureLevel.set(body.level);
     try {
       writeConfigValue('activity.captureLevel', body.level, {
@@ -164,4 +174,14 @@ export function registerActivitySessionsRoute(
     });
     return c.body(null, 204);
   });
+}
+
+/** The install-side shell opt-in (project-local key), read fresh per use. */
+function shellCaptureOn(deps: IActivitySessionsRouteDeps): boolean {
+  return (
+    readConfigValue<boolean>('activity.shellCapture', {
+      cwd: deps.runtimeContext.cwd,
+      default: false,
+    }) === true
+  );
 }

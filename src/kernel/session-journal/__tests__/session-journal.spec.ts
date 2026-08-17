@@ -160,6 +160,26 @@ describe('foldObservedActivity relations', () => {
     assert.equal(invoke.relation, 'invokes');
   });
 
+  it('a shell sighting never becomes an observed relation (heuristic, not evidence)', () => {
+    const rec = recording({
+      frames: [
+        {
+          tMs: 1,
+          type: 'node.activity',
+          data: { nodePath: SKILL, phase: 'start', owner: 'main:s1' },
+        },
+        // Rung-5 frame: renders in replays, but the fold treats it as
+        // a sighting, not a design-evidence access.
+        {
+          tMs: 2,
+          type: 'node.activity',
+          data: { nodePath: 'README.md', phase: 'start', owner: 'main:s1', access: 'shell' },
+        },
+      ],
+    });
+    assert.equal(foldRelations([rec]).size, 0);
+  });
+
   it('a turnEnd cuts the unit attribution: later-turn accesses never blame an earlier unit', () => {
     const rec = recording({
       frames: [

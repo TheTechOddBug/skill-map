@@ -102,6 +102,7 @@ export interface IActivityPort {
     sessions: ISessionRecordingApi[];
     recording: boolean;
     captureLevel: string;
+    shellCapture: boolean;
   }>;
 
   /**

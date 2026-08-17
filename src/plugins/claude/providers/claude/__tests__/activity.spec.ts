@@ -384,6 +384,54 @@ describe('claudeActivity.mapEvent', () => {
     ]);
   });
 
+  it('a Bash command naming in-scope .md files maps one shell sighting per path', () => {
+    const signals = claudeActivity.mapEvent({
+      session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+      cwd: '/home/user/project',
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: {
+        // Quoted + absolute + relative + a duplicate + a URL-shaped
+        // token: only the two real paths survive, once each, and the
+        // COMMAND TEXT itself never rides the signal.
+        command: `cat "docs/guide.md" /home/user/project/notes/todo.md docs/guide.md && curl https://x.io/a.md`,
+      },
+      tool_use_id: 'toolu_01BashShellExample000001',
+    });
+    assert.deepEqual(signals, [
+      {
+        path: 'docs/guide.md',
+        phase: 'start',
+        owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+        detail: 'Bash',
+        access: 'shell',
+      },
+      {
+        path: 'notes/todo.md',
+        phase: 'start',
+        owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+        detail: 'Bash',
+        access: 'shell',
+      },
+    ]);
+    for (const signal of signals ?? []) {
+      assert.equal(JSON.stringify(signal).includes('curl'), false);
+      assert.equal(JSON.stringify(signal).includes('cat '), false);
+    }
+  });
+
+  it('the shell parser caps at five paths per command (a monster one-liner stays bounded)', () => {
+    const files = Array.from({ length: 8 }, (_, i) => `docs/f${i}.md`).join(' ');
+    const signals = claudeActivity.mapEvent({
+      session_id: 's1',
+      cwd: '/home/user/project',
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: `cat ${files}` },
+    });
+    assert.equal(signals?.length, 5);
+  });
+
   it('a markdown Read inside a subagent is owned by that agent_id', () => {
     const signals = claudeActivity.mapEvent({
       cwd: '/home/user/project',

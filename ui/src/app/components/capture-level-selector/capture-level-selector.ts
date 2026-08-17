@@ -5,10 +5,10 @@
  * (choosing how deep a recording sees is part of the record gesture)
  * and mirrored in Settings > Project.
  *
- * `shell` renders but stays DISABLED: the rung is reserved (no capture
- * exists yet; it additionally requires an install-side opt-in when it
- * lands), and showing it keeps the ladder's shape honest instead of
- * springing a sixth option on users later.
+ * The `shell` position unlocks only with the install-side opt-in
+ * (`sm activity install claude --shell`, spec §Capture level rung 5:
+ * double opt-in by design, command lines are operator content); until
+ * then it renders disabled so the ladder's shape stays honest.
  */
 
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
@@ -35,7 +35,7 @@ interface ILevelOption {
   imports: [FormsModule, SelectButtonModule, TooltipModule],
   template: `
     <p-selectbutton
-      [options]="options"
+      [options]="options()"
       optionLabel="label"
       optionValue="value"
       optionDisabled="disabled"
@@ -63,12 +63,15 @@ export class CaptureLevelSelector {
   protected readonly recorder = inject(ActivityRecorderService);
   protected readonly texts = CAPTURE_LEVEL_TEXTS;
 
-  protected readonly options: ILevelOption[] = CAPTURE_LEVELS.map((value) => ({
-    label: CAPTURE_LEVEL_TEXTS.levels[value],
-    value,
-    // Reserved rung: no capture exists yet (see the class doc).
-    disabled: value === 'shell',
-  }));
+  protected readonly options = computed<ILevelOption[]>(() =>
+    CAPTURE_LEVELS.map((value) => ({
+      label: CAPTURE_LEVEL_TEXTS.levels[value],
+      value,
+      // The shell rung unlocks only with the install-side opt-in
+      // (spec §Capture level rung 5, double opt-in by design).
+      disabled: value === 'shell' && !this.service.shellCapture(),
+    })),
+  );
 
   /** Non-null guard: `allowEmpty=false` still types the event loosely. */
   protected onChange(next: TCaptureLevel | null): void {
