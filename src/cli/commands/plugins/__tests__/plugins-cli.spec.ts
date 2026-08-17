@@ -1124,7 +1124,11 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 5: the four below plus the settings showcase
+    // is 8: the four below, the settings showcase, plus the three
+    // observed-* design-vs-reality analyzers (`core/observed-link-missing`,
+    // `core/observed-link-dead`, `core/observed-node-dead`), EXPERIMENTAL
+    // since 2026-08-17 until their evidence gates prove themselves. The
+    // pre-trio count was 5: the four below plus the settings showcase
     // `test-plugin/showcase` (STABLE with `defaultEnabled: false`,
     // 2026-08-02: a deliberate opt-in test surface, one setting per
     // input-type). Historically 4: the disabled `mock-h` drop-in (all five optimization pairs,
@@ -1151,7 +1155,7 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     // so it no longer counts here; `antigravity/antigravity` and
     // `codex/codex` are beta and `agent-skills/agent-skills` is stable +
     // locked, so all ship enabled.)
-    assert.match(r.stdout, /disabled\s+5/);
+    assert.match(r.stdout, /disabled\s+8/);
   });
 });
 
