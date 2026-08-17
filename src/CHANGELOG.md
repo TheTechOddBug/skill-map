@@ -1,5 +1,63 @@
 # skill-map
 
+## 1.12.0
+
+### Minor Changes
+
+- New capture-level ladder: one cumulative runtime knob (`executions` < `reads` < `writes` < `mcp` < `shell`, default `mcp`) filtering resolved activity at ingest before stats, journal and broadcast, moved live via `POST /api/activity/capture-level` and persisted project-local (`activity.captureLevel`). Adapters now stamp `access: "write"` on write-shaped tools, recordings carry their minimum `captureLevel`, and the UI gains a selector beside Record plus a Settings mirror.
+
+  ## User-facing
+
+  A capture-level selector next to Record (and in Settings) decides how much detail the live map and recordings keep, from executions only up to reads, writes and MCP calls, chosen before each recording (it locks while one runs). Writes now show as their own access type.
+
+- The session-journal retention ceilings are now project-config keys beside the master switch: `activity.journal.maxFiles` (default 50) and `activity.journal.maxTotalBytes` (default 20 MiB), read once at serve boot and applied oldest-first at boot and each finalization. The journal is the evidence window the observed-* volume gates count against, so keep `maxFiles` at or above the largest `min-active-sessions` in use.
+
+  ## User-facing
+
+  You can now decide how many recorded sessions the project keeps (`activity.journal.maxFiles` / `maxTotalBytes` in settings.json): raise them if your never-runs detector needs a longer memory than the default 50 sessions.
+
+- Browser-local project state (recording tape, node positions, map curation) is now namespaced per project: `sm serve` stamps the scope root into the served `index.html` as a `skill-map-scope` meta and the UI suffixes those localStorage keys with a hash of it, so two projects on one port stop seeing each other's sessions. A `sm.storage-version` gate resets stale layouts per-bump (this one wipes the pre-namespace era whole); `sm.scopes` maps hash to root for debugging.
+
+  ## User-facing
+
+  Recorded sessions and your map layout now stay with their project: serving another folder on the same port no longer shows the other project's recordings. One-time cost on upgrade: node positions, curation and the browser tape reset (recordings on disk are kept).
+
+- The Sessions tab gains a one-time intro note above the Record control stating what recordings are NOT (content-free: structure and timing, never prompts, file contents or results), dismissible machine-wide via the new `ui.dismissedNotes` list in the per-user settings file (`~/.skill-map/settings.json`), carried by the `GET`/`PATCH /api/preferences` envelope.
+
+  ## User-facing
+
+  A small note above Record now explains that session recordings are content-free (what ran and when, never your prompts, files or results). Close it once and it stays closed on every project on this machine.
+
+- The capture ladder's `shell` rung is live, double opt-in: `sm activity install claude --shell` persists the project-local `activity.shellCapture` key and renders an extra `PreToolUse` Bash hook (`--no-shell` or `activity uninstall` retires it, demoting a stored `shell` level to `mcp`), and the capture-level POST refuses `shell` while the key is off. Bash commands naming in-scope `.md` files yield path sightings (`access: "shell"`); the command text is never captured. Claude-only for now.
+
+  ## User-facing
+
+  Recordings can now spot docs touched from shell commands: opt in with `sm activity install claude --shell`, then pick the Shell capture level. Only file paths are kept, never the commands themselves, and the fifth selector position stays locked until you opt in.
+
+### Patch Changes
+
+- AJV now loads lazily through a synchronous `createRequire` seam in the kernel's ajv-interop helper (every construction site was already function-local, so no signatures changed), stays external to the dist bundle, and the user-settings store validates `~/.skill-map/settings.json` against its own single compiled schema instead of the full spec validator catalog. The five bundled boot deps (clipanion, smol-toml, js-yaml, semver, ignore) moved to devDependencies; installs no longer download them.
+
+- The browser-storage reset gate now keys on the serving CLI version: `sm serve` (and the demo bundle) stamps a second `skill-map-version` meta, documented in the CLI contract's serve row, and upgrades wipe only what a crossed layout-break threshold declares, so a normal release keeps saved state. The locked Shell capture option is no longer natively disabled: it renders muted, refuses the click, and its tooltip explains where to enable it.
+
+  ## User-facing
+
+  **The greyed-out Shell option now explains itself.** Hover it to see how to enable it (Settings > Project > Capture level). And upgrading the CLI no longer resets your saved layout and recordings unless the release actually changed how they are stored.
+
+- Perf follow-up: the scan result fingerprint now hashes through a streaming canonical writer (no multi-MB intermediate string per warm scan), and the pure-JS boot dependencies (clipanion, smol-toml, js-yaml, semver, ignore) are bundled into the dist chunks, cutting eager module loads on startup from ~45 to 14 and `sm --version` to ~135 ms on the reference machine.
+
+- Node perf sprint: the tokenizer moved to `gpt-tokenizer` behind a lazy handle (identical counts; a literal `<|endoftext|>` in prose no longer aborts the scan), warm rescans skip the SQLite replace-all via a whole-result fingerprint in `scan_meta` (schema fingerprint changes, so the derived DB rebuilds once after upgrading), the walk overlaps file reads with an ordered 16-deep read-ahead, and startup defers the kysely/sqlite, watcher and conformance subgraphs and enables the V8 compile cache.
+
+  ## User-facing
+
+  Everything got faster: `sm` starts in about half the time, scans are quicker, and rescans of an unchanged project skip most database work. A file containing the literal text `<|endoftext|>` no longer breaks the scan. The project database rebuilds itself once after updating.
+
+- The replay transport's scope chip now shows the session title (the touched-node names) instead of the short session id across the three Sessions-tab entry points (Play session, Play agent, step deep-link). The chip gained a full-label tooltip and a working ellipsis (as a non-shrinking flex item it used to overflow the fixed-width row), and the transport bar widened from 26rem to 30rem.
+
+  ## User-facing
+
+  **Replay names the session.** The floating replay bar now labels a replay with the session's title, the same skill and agent names you see in the Sessions tab, instead of a short id. Long titles clip with an ellipsis and the full name shows in a tooltip.
+
 ## 1.11.0
 
 ### Minor Changes
