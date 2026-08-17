@@ -54,6 +54,9 @@ COPY spec/ ./spec/
 COPY src/ ./src/
 COPY fixtures/demo/ ./fixtures/demo/
 COPY web/scripts/build-demo-dataset.js ./web/scripts/build-demo-dataset.js
+# The curated session recording the demo's Sessions tab replays
+# (baker input; guarded by src/__tests__/demo-sessions-asset.spec.ts).
+COPY web/scripts/demo-sessions.json ./web/scripts/demo-sessions.json
 RUN node web/scripts/build-demo-dataset.js
 
 # ------------ landing build stage ------------
@@ -78,11 +81,15 @@ COPY --from=build /app/.tmp/site /usr/share/caddy
 # default output of @angular/build:application; we promote it so the
 # demo lives at /usr/share/caddy/demo/index.html.
 COPY --from=ui-build /app/ui/dist/ui/browser /usr/share/caddy/demo
-# Drop the generated demo dataset alongside the bundle. Two files:
-# `data.json` (raw ScanResult) + `data.meta.json` (pre-derived
-# envelopes). StaticDataSource fetches both relative to <base href>.
+# Drop the generated demo dataset alongside the bundle. Three files:
+# `data.json` (raw ScanResult), `data.meta.json` (pre-derived
+# envelopes) and `sessions.json` (the curated session recording the
+# Sessions tab replays; missing, the tab degrades to an empty journal
+# SILENTLY, so keep this in lockstep with build-demo-dataset.js).
+# StaticDataSource fetches all three relative to <base href>.
 COPY --from=ui-build /app/web/demo/data.json /usr/share/caddy/demo/data.json
 COPY --from=ui-build /app/web/demo/data.meta.json /usr/share/caddy/demo/data.meta.json
+COPY --from=ui-build /app/web/demo/sessions.json /usr/share/caddy/demo/sessions.json
 COPY Caddyfile /etc/caddy/Caddyfile
 
 # Railway supplies $PORT at runtime; Caddyfile uses it.
