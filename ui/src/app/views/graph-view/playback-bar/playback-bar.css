@@ -26,7 +26,7 @@
   padding: 6px 12px 4px;
   /* Fixed, never content-driven; the viewport clamp keeps the floating
      bar inside narrow windows. */
-  width: min(26rem, calc(100vw - 2rem));
+  width: min(30rem, calc(100vw - 2rem));
   background: var(--sm-bg-content);
   border: 1px solid color-mix(in srgb, var(--sm-replay-c) 55%, transparent);
   border-radius: var(--sm-radius-xl);
@@ -86,13 +86,16 @@
   flex-shrink: 0;
 }
 
-/* Scope chip: which slice a session-scoped replay narrates. */
+/* Scope chip: which slice a session-scoped replay narrates. As a flex
+   item it MUST be allowed to shrink (min-width: 0), or a long session
+   title overflows the fixed-width row before text-overflow can act. */
 .pbar__scope {
-  max-width: 160px;
+  max-width: 280px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex-shrink: 0;
+  flex-shrink: 1;
   font-size: var(--sm-fs-sm);
   color: var(--p-primary-color);
   border: 1px solid var(--p-content-border-color);

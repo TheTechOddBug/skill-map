@@ -269,7 +269,7 @@ describe('SessionsView', () => {
     (query(fixture, 'sessions-toggle-1') as HTMLButtonElement).click();
     fixture.detectChanges();
     (query(fixture, 'sessions-step') as HTMLButtonElement).click();
-    expect(replaySession).toHaveBeenCalledWith({ rootOwner: MAIN }, 'sess-…', {
+    expect(replaySession).toHaveBeenCalledWith({ rootOwner: MAIN }, 'deploy', {
       tMs: T0,
       path: SKILL,
       detail: 'Skill',
@@ -427,7 +427,7 @@ describe('SessionsView', () => {
     (query(fixture, 'sessions-play-1')?.querySelector('button') as HTMLButtonElement).click();
     expect(replaySession).toHaveBeenCalledWith(
       { rootOwner: 'main:old-1', sourceFrames: journalFrames },
-      'old-1',
+      'deploy',
     );
   });
 
@@ -457,7 +457,7 @@ describe('SessionsView', () => {
   it('Play routes the whole-session selection through the intent', () => {
     const { fixture, replaySession } = makeFixture();
     (query(fixture, 'sessions-play-1')?.querySelector('button') as HTMLButtonElement).click();
-    expect(replaySession).toHaveBeenCalledWith({ rootOwner: MAIN }, 'sess-…');
+    expect(replaySession).toHaveBeenCalledWith({ rootOwner: MAIN }, 'deploy · guide');
   });
 
   it('Play on an agent narrows the selection to that branch', () => {
@@ -469,7 +469,7 @@ describe('SessionsView', () => {
     ).click();
     expect(replaySession).toHaveBeenCalledWith(
       { rootOwner: MAIN, agentSpawnId: 'sp-1' },
-      'sess-…: Explore',
+      'deploy · guide: Explore',
     );
   });
 

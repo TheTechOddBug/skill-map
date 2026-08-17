@@ -86,7 +86,10 @@
       data-testid="graph-playback-step-forward"
     />
     @if (playback.scopeLabel(); as scope) {
-      <span class="pbar__scope" [pTooltip]="texts.scopeTooltip" data-testid="graph-playback-scope">{{
+      <!-- Tooltip carries the FULL label: the chip ellipsizes and the
+           label is now the session title (touched-node names), so the
+           overflow must stay recoverable. -->
+      <span class="pbar__scope" [pTooltip]="scope" data-testid="graph-playback-scope">{{
         scope
       }}</span>
     }

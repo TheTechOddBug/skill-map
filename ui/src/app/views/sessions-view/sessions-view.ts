@@ -343,14 +343,24 @@ export class SessionsView {
     };
   }
 
+  /**
+   * What the replay transport's scope chip reads: the session's TITLE
+   * (the touched-node names, user call 2026-08-17), not the short id.
+   * The id keeps naming the row's expand/collapse aria labels, where
+   * positional identity matters more than content.
+   */
+  private replayLabel(session: ISessionEntry): string {
+    return this.sessionTitle(session);
+  }
+
   protected play(session: ISessionEntry): void {
-    this.replayIntent.replaySession(this.selectionFor(session), this.sessionName(session));
+    this.replayIntent.replaySession(this.selectionFor(session), this.replayLabel(session));
   }
 
   protected playAgent(session: ISessionEntry, agent: ISessionAgentNode): void {
     this.replayIntent.replaySession(
       this.selectionFor(session, agent.spawnId),
-      this.texts.agentLabel(this.sessionName(session), agent.name ?? this.texts.unnamedAgent),
+      this.texts.agentLabel(this.replayLabel(session), agent.name ?? this.texts.unnamedAgent),
     );
   }
 
@@ -361,7 +371,7 @@ export class SessionsView {
    * moment; the intent seeks by the step's `(tMs, path)` identity.
    */
   protected playStep(session: ISessionEntry, step: ISessionStep): void {
-    this.replayIntent.replaySession(this.selectionFor(session), this.sessionName(session), step);
+    this.replayIntent.replaySession(this.selectionFor(session), this.replayLabel(session), step);
   }
 
   /** An agent is replayable only if its subtree owns attributable frames. */
