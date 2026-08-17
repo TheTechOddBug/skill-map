@@ -17,10 +17,13 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Hono } from 'hono';
 
-import { createSpaFallback, createStaticHandler } from '../static.js';
+import { createSpaFallback, createStaticHandler, injectScopeMeta } from '../static.js';
 
 interface IPlaceholderCase {
   name: string;
@@ -54,7 +57,11 @@ const CASES: IPlaceholderCase[] = [
   },
 ];
 
-function mountStatic(opts: { uiDist: string | null; noUi: boolean }): Hono {
+function mountStatic(opts: {
+  uiDist: string | null;
+  noUi: boolean;
+  scopeRoot?: string | null;
+}): Hono {
   const app = new Hono();
   app.use('*', createStaticHandler(opts));
   app.get('*', createSpaFallback(opts));
@@ -73,4 +80,51 @@ describe('static handler, placeholder dispatch', () => {
       for (const re of c.expectNoMatch) assert.doesNotMatch(body, re);
     });
   }
+});
+
+
+/**
+ * The scope-meta stamp (spec cli-contract.md §Serve): the served
+ * `index.html` carries the resolved scope root so the SPA can
+ * namespace its browser-local project state per project.
+ */
+describe('static handler, scope-meta stamp', () => {
+  let uiDist: string;
+
+  before(() => {
+    uiDist = mkdtempSync(join(tmpdir(), 'skill-map-static-scope-'));
+    writeFileSync(
+      join(uiDist, 'index.html'),
+      '<!doctype html><html><head><title>x</title></head><body></body></html>',
+      'utf8',
+    );
+    writeFileSync(join(uiDist, 'main.js'), 'console.log(1)', 'utf8');
+  });
+
+  after(() => {
+    rmSync(uiDist, { recursive: true, force: true });
+  });
+
+  it('stamps "/", "/index.html" and SPA deep links; assets stream untouched', async () => {
+    const app = mountStatic({ uiDist, noUi: false, scopeRoot: '/home/x/proj' });
+    for (const path of ['/', '/index.html', '/some/deep/link']) {
+      const body = await (await app.request(path)).text();
+      assert.match(body, /<meta name="skill-map-scope" content="\/home\/x\/proj">/, path);
+    }
+    const asset = await (await app.request('/main.js')).text();
+    assert.equal(asset.includes('skill-map-scope'), false);
+  });
+
+  it('no scopeRoot = no stamp, the document serves verbatim', async () => {
+    const app = mountStatic({ uiDist, noUi: false });
+    const body = await (await app.request('/')).text();
+    assert.equal(body.includes('skill-map-scope'), false);
+  });
+
+  it('injectScopeMeta escapes attribute-hostile roots and skips head-less documents', () => {
+    const stamped = injectScopeMeta('<head></head>', '/a"b&c');
+    assert.match(stamped, /content="\/a&quot;b&amp;c"/);
+    const headless = '<html><body>plain</body></html>';
+    assert.equal(injectScopeMeta(headless, '/x'), headless);
+  });
 });

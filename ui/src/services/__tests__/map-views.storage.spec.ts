@@ -1,3 +1,4 @@
+import { scopedKey } from '../scoped-storage';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { readStoredActiveView, writeStoredActiveView } from '../map-views.storage';
@@ -8,7 +9,7 @@ import { readStoredActiveView, writeStoredActiveView } from '../map-views.storag
  * non-slug value must read as `null` (no active view), never throw.
  */
 
-const KEY = 'sm.map.active-view';
+const KEY = scopedKey('sm.map.active-view');
 
 describe('map-views.storage', () => {
   beforeEach(() => {

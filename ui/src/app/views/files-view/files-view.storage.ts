@@ -15,7 +15,9 @@
  * inverted meaning.
  */
 
-const EXPANDED_STORAGE_KEY = 'sm.folders.expanded';
+import { scopedKey } from '../../../services/scoped-storage';
+
+const EXPANDED_STORAGE_KEY = scopedKey('sm.folders.expanded');
 
 export function readStoredExpanded(): Set<string> {
   let raw: string | null = null;

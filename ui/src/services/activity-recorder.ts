@@ -56,6 +56,7 @@
  * recorder would silently start mid-session.
  */
 
+import { scopedKey } from './scoped-storage';
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import { DATA_SOURCE, type IDataSourcePort } from './data-source/data-source.port';
@@ -72,7 +73,7 @@ import { WsEventStreamService } from './ws-event-stream';
 export const ACTIVITY_RECORDER_CAP = 50_000;
 
 /** localStorage key holding the mirrored tape (see the module doc). */
-export const ACTIVITY_RECORDING_KEY = 'sm.live.recording';
+export const ACTIVITY_RECORDING_KEY = scopedKey('sm.live.recording');
 
 /**
  * Trailing slice mirrored to storage. At the playback cadence of one

@@ -54,6 +54,8 @@
  * vocabulary across both surfaces.
  */
 
+import { realpathSync } from 'node:fs';
+
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 // eslint-disable-next-line import-x/extensions
@@ -945,8 +947,23 @@ export function createApp(deps: IAppDeps): Hono {
   // 4. Static + 5. SPA fallback. Order matters: the static handler
   //    short-circuits on a real file match; everything else falls
   //    through to the SPA fallback (which serves index.html).
-  app.use('*', createStaticHandler({ uiDist: deps.options.uiDist, noUi: deps.options.noUi }));
-  app.get('*', createSpaFallback({ uiDist: deps.options.uiDist, noUi: deps.options.noUi }));
+  // Scope root for the SPA's per-project storage namespace (see
+  // static.ts injectScopeMeta): realpath so a symlinked checkout and
+  // its target mint ONE namespace.
+  let scopeRoot: string | null;
+  try {
+    scopeRoot = realpathSync(deps.runtimeContext.cwd);
+  } catch {
+    scopeRoot = deps.runtimeContext.cwd;
+  }
+  app.use(
+    '*',
+    createStaticHandler({ uiDist: deps.options.uiDist, noUi: deps.options.noUi, scopeRoot }),
+  );
+  app.get(
+    '*',
+    createSpaFallback({ uiDist: deps.options.uiDist, noUi: deps.options.noUi, scopeRoot }),
+  );
 
   app.notFound((c) => {
     // Audit L4, same path-sanitisation rationale as the `/api/*`

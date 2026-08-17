@@ -1,3 +1,4 @@
+import { scopedKey } from '../../../../services/scoped-storage';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -25,7 +26,7 @@ describe('expansion.controller', () => {
       expect(handle.isExpanded('a')).toBe(false);
       handle.setExpanded('a', true);
       expect(handle.isExpanded('a')).toBe(true);
-      expect(localStorage.getItem('sm.graph.node-expanded')).toContain('"a"');
+      expect(localStorage.getItem(scopedKey('sm.graph.node-expanded'))).toContain('"a"');
     });
   });
 
@@ -42,9 +43,9 @@ describe('expansion.controller', () => {
     TestBed.runInInjectionContext(() => {
       const handle = setupExpansion({ nodes: signal<readonly INodeView[]>([]) });
       handle.setExpanded('a', true);
-      const before = localStorage.getItem('sm.graph.node-expanded');
+      const before = localStorage.getItem(scopedKey('sm.graph.node-expanded'));
       handle.setExpanded('a', true);
-      expect(localStorage.getItem('sm.graph.node-expanded')).toBe(before);
+      expect(localStorage.getItem(scopedKey('sm.graph.node-expanded'))).toBe(before);
     });
   });
 
@@ -61,7 +62,7 @@ describe('expansion.controller', () => {
 
   it('reconcile drops ids whose path no longer exists in the loaded set', () => {
     // Seed storage with an expanded id, then load a set that does NOT include it.
-    localStorage.setItem('sm.graph.node-expanded', JSON.stringify(['stale-path.md']));
+    localStorage.setItem(scopedKey('sm.graph.node-expanded'), JSON.stringify(['stale-path.md']));
     const nodes = signal<readonly INodeView[]>([makeNode('agents/a.md')]);
 
     TestBed.runInInjectionContext(() => {
@@ -73,7 +74,7 @@ describe('expansion.controller', () => {
   });
 
   it('empty loaded set (boot phase) does NOT wipe storage', () => {
-    localStorage.setItem('sm.graph.node-expanded', JSON.stringify(['a']));
+    localStorage.setItem(scopedKey('sm.graph.node-expanded'), JSON.stringify(['a']));
     const nodes = signal<readonly INodeView[]>([]);
 
     TestBed.runInInjectionContext(() => {

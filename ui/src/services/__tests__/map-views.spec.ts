@@ -1,3 +1,4 @@
+import { scopedKey } from '../scoped-storage';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -544,7 +545,7 @@ describe('MapViewsService', () => {
     await first.service.loadViews();
     first.service.apply('focus');
     TestBed.tick(); // flush the persistence effect
-    expect(localStorage.getItem('sm.map.active-view')).toBe('focus');
+    expect(localStorage.getItem(scopedKey('sm.map.active-view'))).toBe('focus');
 
     // New "session" over the same localStorage (keepStorage): the slug
     // restores from storage at construction, and the service does NOT

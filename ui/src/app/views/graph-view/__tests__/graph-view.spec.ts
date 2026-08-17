@@ -1,3 +1,4 @@
+import { scopedKey } from '../../../../services/scoped-storage';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { Component, Injectable, signal } from '@angular/core';
@@ -813,8 +814,8 @@ describe('GraphView, isolate (1-hop neighborhood)', () => {
   beforeEach(() => {
     // Overrides persist in localStorage; clear both the current and the
     // legacy key so each isolate test starts from show-all.
-    localStorage.removeItem('sm.map.overrides');
-    localStorage.removeItem('sm.map.visible-paths');
+    localStorage.removeItem(scopedKey('sm.map.overrides'));
+    localStorage.removeItem(scopedKey('sm.map.visible-paths'));
     TestBed.resetTestingModule();
   });
 
@@ -927,7 +928,7 @@ describe('GraphView, branch rendering + cap banner', () => {
     // Map-visibility curation persists in localStorage; a prior isolate
     // test can leave a non-empty inclusion set that would narrow the
     // canvas here. Clear it so the branch projection is the only filter.
-    localStorage.removeItem('sm.map.visible-paths');
+    localStorage.removeItem(scopedKey('sm.map.visible-paths'));
     TestBed.resetTestingModule();
   });
 
@@ -1210,8 +1211,8 @@ describe('GraphView, follow-the-activity camera', () => {
     // 2026-07-26), and this suite exercises the explicit toggle-on
     // wiring, so it starts from a stored opt-out.
     localStorage.setItem(FOLLOW_KEY, 'false');
-    localStorage.removeItem('sm.map.visible-paths');
-    localStorage.removeItem('sm.graph.viewport');
+    localStorage.removeItem(scopedKey('sm.map.visible-paths'));
+    localStorage.removeItem(scopedKey('sm.graph.viewport'));
   });
 
   /**
@@ -1370,7 +1371,7 @@ describe('GraphView, follow-the-activity camera', () => {
       animateToTransform(t: { position: { x: number; y: number }; scale: number }): void;
     }).animateToTransform({ position: { x: 100, y: 240 }, scale: 1.5 });
 
-    const raw = localStorage.getItem('sm.graph.viewport');
+    const raw = localStorage.getItem(scopedKey('sm.graph.viewport'));
     expect(raw).not.toBeNull();
     expect(JSON.parse(raw!)).toEqual({ x: 100, y: 240, scale: 1.5 });
   });
@@ -1404,8 +1405,8 @@ describe('GraphView, follow-the-activity camera', () => {
 describe('GraphView, change spark', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
-    localStorage.removeItem('sm.map.visible-paths');
-    localStorage.removeItem('sm.graph.viewport');
+    localStorage.removeItem(scopedKey('sm.map.visible-paths'));
+    localStorage.removeItem(scopedKey('sm.graph.viewport'));
   });
 
   /**

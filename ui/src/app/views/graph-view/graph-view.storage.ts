@@ -12,12 +12,13 @@
  * I/O.
  */
 
+import { scopedKey } from '../../../services/scoped-storage';
 import { isPoint, isStoredViewport } from './graph-view.utils';
 import type { IPoint, IStoredNodePosition, TNodePositions } from './graph-layout';
 
-const VIEWPORT_STORAGE_KEY = 'sm.graph.viewport';
-const NODE_POSITIONS_STORAGE_KEY = 'sm.graph.node-positions';
-const NODE_EXPANDED_STORAGE_KEY = 'sm.graph.node-expanded';
+const VIEWPORT_STORAGE_KEY = scopedKey('sm.graph.viewport');
+const NODE_POSITIONS_STORAGE_KEY = scopedKey('sm.graph.node-positions');
+const NODE_EXPANDED_STORAGE_KEY = scopedKey('sm.graph.node-expanded');
 const PANEL_WIDTH_STORAGE_KEY = 'sm.graph.panel-width';
 
 export interface IStoredViewport {

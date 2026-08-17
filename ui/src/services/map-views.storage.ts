@@ -10,7 +10,9 @@
  * `map-view.schema.json` is treated as corrupt rather than trusted.
  */
 
-const ACTIVE_VIEW_STORAGE_KEY = 'sm.map.active-view';
+import { scopedKey } from './scoped-storage';
+
+const ACTIVE_VIEW_STORAGE_KEY = scopedKey('sm.map.active-view');
 
 /** Slug rule of `map-view.schema.json` `$defs.Slug`. */
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;

@@ -24,9 +24,10 @@
  * selection.
  */
 
+import { scopedKey } from './scoped-storage';
 import type { TVisibilityOverride } from './map-overrides';
 
-const OVERRIDES_STORAGE_KEY = 'sm.map.overrides';
+const OVERRIDES_STORAGE_KEY = scopedKey('sm.map.overrides');
 const LEGACY_VISIBLE_PATHS_KEY = 'sm.map.visible-paths';
 
 export function readStoredOverrides(): Map<string, TVisibilityOverride> {

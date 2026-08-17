@@ -18,13 +18,15 @@
  * NOT apply.
  */
 
+import { scopedKey } from '../scoped-storage';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 
 import { MapVisibilityService } from '../map-visibility';
 import { readStoredOverrides } from '../map-visibility.storage';
 
-const STORAGE_KEY = 'sm.map.overrides';
+const STORAGE_KEY = scopedKey('sm.map.overrides');
+// Bare BY DESIGN: the migration reads the pre-namespace spelling.
 const LEGACY_KEY = 'sm.map.visible-paths';
 
 function inject(): MapVisibilityService {

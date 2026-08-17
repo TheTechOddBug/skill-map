@@ -836,7 +836,7 @@ Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interacti
 
 | Command | Purpose |
 |---|---|
-| `sm serve [--port N] [--host ...] [--db <path>] [--no-built-ins] [--no-plugins] [--open\|--no-open] [--dev-cors] [--ui-dist <path>] [--no-ui] [--no-watcher]` | Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener. Default port 4242, default host 127.0.0.1 (loopback-only; multi-host serve is not supported, see §Server). Watcher on by default (Decision #121: a server with stale DB is a footgun); pass `--no-watcher` for CI / read-only deployments. `--no-ui` skips the SPA bundle (dev workflow alongside the Angular dev server); see §Server flags. |
+| `sm serve [--port N] [--host ...] [--db <path>] [--no-built-ins] [--no-plugins] [--open\|--no-open] [--dev-cors] [--ui-dist <path>] [--no-ui] [--no-watcher]` | Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener. Default port 4242, default host 127.0.0.1 (loopback-only; multi-host serve is not supported, see §Server). Watcher on by default (Decision #121: a server with stale DB is a footgun); pass `--no-watcher` for CI / read-only deployments. `--no-ui` skips the SPA bundle (dev workflow alongside the Angular dev server); see §Server flags. The served `index.html` is stamped with a `<meta name="skill-map-scope">` carrying the RESOLVED scope root (realpath), which the SPA uses to namespace its browser-local project state (recording tape, node positions, map curation) per project: localStorage is per-origin and every locally served project shares `127.0.0.1:<port>`, so unstamped state would follow the browser across projects. Operator preferences stay un-namespaced by design. |
 
 #### Server
 

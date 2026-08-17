@@ -375,6 +375,7 @@ describe('CollectionLoaderService, selection-driven branch fetch', () => {
     // Seed a LEGACY selection BEFORE the loader boots: the storage
     // migration converts it to root-exclude + include, and load() sends
     // that scope on the wire.
+    // Bare BY DESIGN: the migration reads the pre-namespace spelling.
     localStorage.setItem('sm.map.visible-paths', JSON.stringify(['src']));
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({

@@ -13,6 +13,7 @@
  *     untouched (the ephemerality contract).
  */
 
+import { scopedKey } from '../../../../services/scoped-storage';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -154,7 +155,7 @@ function makeHarness(opts?: { bootDone?: boolean }) {
 
 describe('live-lens.controller', () => {
   beforeEach(() => {
-    localStorage.removeItem('sm.graph.node-positions');
+    localStorage.removeItem(scopedKey('sm.graph.node-positions'));
   });
 
   it('fills the lens pipeline with force positions on activation', () => {
@@ -246,7 +247,7 @@ describe('live-lens.controller', () => {
   });
 
   it('a full enter/exit cycle never touches the persisted node positions', () => {
-    localStorage.setItem('sm.graph.node-positions', '{"a.md":{"x":1,"y":2,"manual":true}}');
+    localStorage.setItem(scopedKey('sm.graph.node-positions'), '{"a.md":{"x":1,"y":2,"manual":true}}');
     const h = makeHarness();
     h.setLive([A, B]);
     h.handle.toggle();
@@ -255,7 +256,7 @@ describe('live-lens.controller', () => {
     h.handle.toggle();
     TestBed.tick();
 
-    expect(localStorage.getItem('sm.graph.node-positions')).toBe(
+    expect(localStorage.getItem(scopedKey('sm.graph.node-positions'))).toBe(
       '{"a.md":{"x":1,"y":2,"manual":true}}',
     );
   });

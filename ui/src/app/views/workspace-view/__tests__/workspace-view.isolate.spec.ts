@@ -9,6 +9,7 @@ import { WorkspaceView } from '../workspace-view';
 import { readStoredActiveSection } from '../workspace-view.storage';
 import { GraphView } from '../../graph-view/graph-view';
 import { ActivityPlaybackService } from '../../../../services/activity-playback';
+import { ACTIVITY_RECORDING_KEY } from '../../../../services/activity-recorder';
 import { ActivityReadinessService } from '../../../services/activity-readiness';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
 import { FilterStoreService } from '../../../../services/filter-store';
@@ -810,7 +811,7 @@ describe('WorkspaceView activity sections', () => {
     // the REAL recorder a session without a WS socket.
     const t0 = 1_700_000_000_000;
     localStorage.setItem(
-      'sm.live.recording',
+      ACTIVITY_RECORDING_KEY,
       JSON.stringify([
         {
           tMs: t0,
@@ -841,7 +842,7 @@ describe('WorkspaceView activity sections', () => {
     expect(lens.active()).toBe(true);
 
     playback.exit();
-    localStorage.removeItem('sm.live.recording');
+    localStorage.removeItem(ACTIVITY_RECORDING_KEY);
     localStorage.removeItem('sm.workspace.rail-collapsed');
     localStorage.removeItem('sm.workspace.rail-section');
   });
@@ -849,7 +850,7 @@ describe('WorkspaceView activity sections', () => {
   it('a step deep-link lands the replay ON that frame and PAUSED', async () => {
     const t0 = 1_700_000_000_000;
     localStorage.setItem(
-      'sm.live.recording',
+      ACTIVITY_RECORDING_KEY,
       JSON.stringify([
         {
           tMs: t0,
@@ -883,7 +884,7 @@ describe('WorkspaceView activity sections', () => {
     expect(playback.playing()).toBe(false);
 
     playback.exit();
-    localStorage.removeItem('sm.live.recording');
+    localStorage.removeItem(ACTIVITY_RECORDING_KEY);
     localStorage.removeItem('sm.workspace.rail-collapsed');
     localStorage.removeItem('sm.workspace.rail-section');
   });
