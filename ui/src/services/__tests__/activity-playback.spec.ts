@@ -142,6 +142,25 @@ describe('ActivityPlaybackService', () => {
     expect(service.total()).toBe(0);
   });
 
+  it('the replay source defaults to whole-tape, rides enter(), and resets on exit', () => {
+    const { service } = bootstrap(TAPE);
+    expect(service.source()).toEqual({ kind: 'whole-tape' });
+
+    service.enter(TAPE, 'Session 1', { kind: 'tape-session', rootOwner: 'main:s1' });
+    expect(service.source()).toEqual({ kind: 'tape-session', rootOwner: 'main:s1' });
+    service.exit();
+    expect(service.source()).toEqual({ kind: 'whole-tape' });
+
+    service.enter(TAPE, 'journal row', { kind: 'journal' });
+    expect(service.source()).toEqual({ kind: 'journal' });
+    service.exit();
+
+    // Entering without a source keeps the historical default.
+    service.enter(TAPE);
+    expect(service.source()).toEqual({ kind: 'whole-tape' });
+    service.exit();
+  });
+
   it('entering with an empty tape stays inert (nothing to play)', () => {
     const { service } = bootstrap([]);
     service.enter();

@@ -944,9 +944,16 @@ WHICH nodes executed and who spawned whom, no latency, no tokens, no content.
   the suffix is the runtime session id when derivable (sanitized to
   `[A-Za-z0-9._-]`) and an 8-char hash of the root owner otherwise. Sortable
   by name, stable per session within a boot.
-- **Retention**: bounded by file count and total size (defaults: 50 files,
-  20 MiB), oldest first by name, pruned at server boot and at each
-  finalization. Deleting any or all files by hand is always safe.
+- **Retention**: bounded by file count and total size, oldest first by
+  name, pruned at server boot and at each finalization. Both bounds are
+  project-config keys beside the master switch (2026-08-17):
+  `activity.journal.maxFiles` (default 50) and
+  `activity.journal.maxTotalBytes` (default 20971520, 20 MiB), read once
+  at serve boot. Because the journal IS the evidence the observed-*
+  volume gates count against, retention defines their window: keep
+  `maxFiles` at or above the largest `min-active-sessions` in use, or
+  that gate can never be met. Deleting any or all files by hand is
+  always safe.
 - **Read-back**: `GET /api/activity/sessions` serves the journal for
   client hydration: `{ "schemaVersion": "1", "kind": "activity-sessions",
   "sessions": [<SessionRecording>...], "skipped": [<basename>...],

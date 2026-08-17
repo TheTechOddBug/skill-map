@@ -113,6 +113,77 @@ describe('POST /api/activity/sessions/recording', () => {
     });
   });
 
+  it('retention config keys thread to the boot prune (maxFiles trims the journal at startup)', async () => {
+    const dir = defaultProjectSessionsDir(scopeRoot);
+    mkdirSync(dir, { recursive: true });
+    for (const suffix of ['a1', 'b2', 'c3']) {
+      writeFileSync(
+        join(dir, `2026-08-17T0${suffix[1]}0000.000Z-${suffix}.json`),
+        JSON.stringify({ ...VALID_RECORDING, sessionId: suffix, rootOwner: `main:${suffix}` }),
+      );
+    }
+    const settingsPath = join(scopeRoot, '.skill-map', 'settings.json');
+    writeFileSync(settingsPath, JSON.stringify({ activity: { journal: { maxFiles: 1 } } }));
+    try {
+      await bootAndUse(async (handle) => {
+        const body = (await (await fetch(url(handle, '/api/activity/sessions'))).json()) as {
+          sessions: Array<{ sessionId?: string }>;
+        };
+        // Boot prune, oldest first: only the newest recording survives.
+        assert.equal(body.sessions.length, 1);
+        assert.equal(body.sessions[0]!.sessionId, 'c3');
+      });
+    } finally {
+      rmSync(settingsPath, { force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the byte ceiling prunes too, and an off-shape maxFiles falls back to the default', async () => {
+    const dir = defaultProjectSessionsDir(scopeRoot);
+    mkdirSync(dir, { recursive: true });
+    // ~40 KB per file: three files far exceed a 90 KB ceiling, while
+    // any two fit under it.
+    const fat = {
+      ...VALID_RECORDING,
+      frames: [
+        {
+          tMs: 1_723_800_000_100,
+          type: 'node.activity',
+          data: { nodePath: 'README.md', phase: 'start', owner: 'main:s1', detail: 'x'.repeat(40_000) },
+        },
+      ],
+    };
+    for (const suffix of ['a1', 'b2', 'c3']) {
+      writeFileSync(
+        join(dir, `2026-08-17T0${suffix[1]}0000.000Z-${suffix}.json`),
+        JSON.stringify({ ...fat, sessionId: suffix, rootOwner: `main:${suffix}` }),
+      );
+    }
+    const settingsPath = join(scopeRoot, '.skill-map', 'settings.json');
+    // maxFiles 0 is OFF-SHAPE (schema minimum 1): the boot must fall
+    // back to the default ceiling instead of wiping the journal, so
+    // only the byte bound below does any pruning.
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({ activity: { journal: { maxFiles: 0, maxTotalBytes: 90_000 } } }),
+    );
+    try {
+      await bootAndUse(async (handle) => {
+        const body = (await (await fetch(url(handle, '/api/activity/sessions'))).json()) as {
+          sessions: Array<{ sessionId?: string }>;
+        };
+        assert.deepEqual(
+          body.sessions.map((s) => s.sessionId),
+          ['b2', 'c3'], // oldest evicted by bytes; the rest kept (name order)
+        );
+      });
+    } finally {
+      rmSync(settingsPath, { force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('the master switch off refuses to engage: the response answers with the EFFECTIVE state', async () => {
     // Boot with `activity.journal.enabled: false` in the project layer;
     // the toggle must answer honestly instead of pretending to record.

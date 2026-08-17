@@ -74,7 +74,11 @@ import { tx } from '../kernel/util/tx.js';
 import { readConfigValue } from '../core/config/helper.js';
 import { defaultProjectSessionsDir } from '../core/paths/db-path.js';
 import { ActivityConversationStore } from './activity-conversations.js';
-import { ActivityJournalService } from './activity-journal.js';
+import {
+  ActivityJournalService,
+  JOURNAL_MAX_FILES,
+  JOURNAL_MAX_TOTAL_BYTES,
+} from './activity-journal.js';
 import { ActivityOwnerIndex } from './activity-owner-index.js';
 import { ActivityProbeStore } from './activity-probe.js';
 import { ActivityStatsService } from './activity-stats.js';
@@ -417,15 +421,33 @@ function buildMcpIntegration(
  * composition root's cyclomatic budget.
  */
 function buildActivityJournal(runtimeContext: IRuntimeContext): ActivityJournalService {
+  const cwd = runtimeContext.cwd;
   return new ActivityJournalService({
     enabled:
-      readConfigValue<boolean>('activity.journal.enabled', {
-        cwd: runtimeContext.cwd,
-        default: true,
-      }) ?? true,
-    sessionsDir: defaultProjectSessionsDir(runtimeContext.cwd),
-    cwd: runtimeContext.cwd,
+      readConfigValue<boolean>('activity.journal.enabled', { cwd, default: true }) ?? true,
+    sessionsDir: defaultProjectSessionsDir(cwd),
+    cwd,
+    // Retention ceilings (spec §Session journal · Retention, config
+    // keys 2026-08-17): the journal is the evidence window the
+    // observed-* volume gates count against, so the bounds are the
+    // operator's. Off-shape values fall back to the shipped defaults.
+    maxFiles: positiveInt(
+      readConfigValue<number>('activity.journal.maxFiles', { cwd, default: JOURNAL_MAX_FILES }),
+      JOURNAL_MAX_FILES,
+    ),
+    maxTotalBytes: positiveInt(
+      readConfigValue<number>('activity.journal.maxTotalBytes', {
+        cwd,
+        default: JOURNAL_MAX_TOTAL_BYTES,
+      }),
+      JOURNAL_MAX_TOTAL_BYTES,
+    ),
   });
+}
+
+/** Guard a config-sourced count: a positive integer, else the default. */
+function positiveInt(raw: number | undefined, fallback: number): number {
+  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 ? raw : fallback;
 }
 
 /**

@@ -42,4 +42,23 @@ describe('SessionPurgeService', () => {
     await Promise.resolve();
     expect(clear).toHaveBeenCalledTimes(1);
   });
+
+  it('purgedAt bumps once the wipe settles, success or failure (the Sessions tab refetch signal)', async () => {
+    const ok = bootstrap();
+    expect(ok.service.purgedAt()).toBe(0);
+    ok.service.purge();
+    expect(ok.service.purgedAt()).toBe(0); // not before the DELETE lands
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(ok.service.purgedAt()).toBe(1);
+
+    // A failed wipe still bumps: the refetch is how the tab discovers
+    // what actually survived.
+    const failed = bootstrap(true);
+    failed.service.purge();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(failed.service.purgedAt()).toBe(1);
+  });
 });

@@ -200,6 +200,29 @@ describe('ActivityRecorderService', () => {
     expect(service.events()[0]?.tMs).toBe(T0 + 10);
   });
 
+  it('removeAll() drops ONLY the given frames (identity) and mirrors after the debounce', async () => {
+    const { service, events$ } = bootstrap();
+    events$.next(activityFrame(T0 + 1));
+    events$.next(activityFrame(T0 + 2, '.claude/agents/other.md'));
+    events$.next(activityFrame(T0 + 3));
+    await flushed();
+    expect(service.size()).toBe(3);
+
+    // Identity-based: hand back the exact frame objects from events().
+    const mine = service.events().filter((e) => e.tMs !== T0 + 2);
+    service.removeAll(mine);
+    expect(service.size()).toBe(1);
+    expect(service.events()[0]?.tMs).toBe(T0 + 2);
+
+    // The storage mirror follows on the standard debounce.
+    await persisted();
+    expect(storedTape()).toHaveLength(1);
+
+    // Empty input is a no-op.
+    service.removeAll([]);
+    expect(service.size()).toBe(1);
+  });
+
   it('clear() drops the tape and the pending batch', async () => {
     const { service, events$ } = bootstrap();
     events$.next(activityFrame(T0 + 1));
