@@ -24,7 +24,27 @@ Install the latest LTS from https://nodejs.org and retry.
   process.exit(2);
 }
 
-import('../dist/cli.js').catch((err) => {
-  process.stderr.write(`sm: failed to load CLI, ${err.message}\n`);
-  process.exit(2);
-});
+// V8 compile cache: persists compiled bytecode under
+// os.tmpdir()/node-compile-cache (NOT $HOME, so the project-local-only
+// invariant is untouched) and shaves ESM compile time off every warm
+// invocation; the first run per build pays a one-time write. Respects
+// NODE_COMPILE_CACHE / NODE_DISABLE_COMPILE_CACHE=1. A promise chain
+// (NOT top-level await, NOT a static import) so nothing hoists above
+// the Node-major guard; every failure is swallowed, the cache is a
+// pure optimisation.
+import('node:module')
+  .then((mod) => {
+    try {
+      mod.enableCompileCache();
+    } catch {
+      // Best-effort: an unwritable tmpdir must not block the CLI.
+    }
+  })
+  .catch(() => {
+    // Same posture: never let cache setup break startup.
+  })
+  .then(() => import('../dist/cli.js'))
+  .catch((err) => {
+    process.stderr.write(`sm: failed to load CLI, ${err.message}\n`);
+    process.exit(2);
+  });

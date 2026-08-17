@@ -11,12 +11,9 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { isAbsolute, resolve as resolvePath } from 'node:path';
 
-// js-tiktoken ships CJS subpaths without explicit `.cjs` in the import
-// specifier, the lint rule's hard-coded extension matrix doesn't model
-// dual-package CJS subpath exports.
-// eslint-disable-next-line import-x/extensions
-import { Tiktoken } from 'js-tiktoken/lite';
 import { dump as yamlDump, CORE_SCHEMA } from 'js-yaml';
+
+import type { ITokenCounter } from './token-counter.js';
 
 import type { IProvider, IRawNode } from '../extensions/index.js';
 import type { IProviderFrontmatterValidator } from '../adapters/schema-validators.js';
@@ -24,7 +21,7 @@ import {
   computeDriftStatus,
   readSidecarFor,
 } from '../sidecar/index.js';
-import type { Issue, Node, TripleSplit } from '../types.js';
+import type { Issue, Node } from '../types.js';
 import { stripPrototypePollution } from '../util/strip-prototype-pollution.js';
 import {
   detectEarlyCloseFrontmatter,
@@ -42,7 +39,7 @@ export interface IBuildNodeArgs {
   frontmatter: Record<string, unknown>;
   bodyHash: string;
   frontmatterHash: string;
-  encoder: Tiktoken | null;
+  encoder: ITokenCounter | null;
   /**
    * File mtime (Unix ms) from the walker's `lstat`. Accepts `undefined`
    * (not just absent) so the pass-through from `IRawNode.modifiedAtMs`
@@ -83,17 +80,9 @@ export function buildNode(args: IBuildNodeArgs): Node {
   // `undefined`) for sources that never supply an mtime.
   if (args.modifiedAtMs !== undefined) node.modifiedAtMs = args.modifiedAtMs;
   if (args.encoder) {
-    node.tokens = countTokens(args.encoder, args.frontmatterRaw, args.body);
+    node.tokens = args.encoder.count(args.frontmatterRaw, args.body);
   }
   return node;
-}
-
-export function countTokens(encoder: Tiktoken, frontmatterRaw: string, body: string): TripleSplit {
-  // Tokenize the raw frontmatter bytes (not the parsed object) so the
-  // count stays reproducible from on-disk content.
-  const frontmatter = frontmatterRaw.length > 0 ? encoder.encode(frontmatterRaw).length : 0;
-  const bodyTokens = body.length > 0 ? encoder.encode(body).length : 0;
-  return { frontmatter, body: bodyTokens, total: frontmatter + bodyTokens };
 }
 
 export function sha256(input: string): string {
@@ -204,6 +193,13 @@ export function canonicalResolvedSettings(
  * issue but do not crash the scan: the node still scans with `present`
  * = true and `status` = null. On parse success, `annotations` lands
  * on the overlay along with the full parsed root.
+ *
+ * Perf note (2026-08 sprint): this resolution is SYNCHRONOUS
+ * (`existsSync` + `readFileSync` in `sidecar/parse.ts`) and runs once
+ * per node on EVERY scan, warm included. Async-ifying it ripples into
+ * every `readSidecarFor` consumer, so it was deliberately left out of
+ * the ordered-read-ahead pass; designated follow-up if a future
+ * re-profile shows the warm-scan target at risk.
  */
 interface ISidecarResolution {
   overlay: NonNullable<Node['sidecar']>;
@@ -415,7 +411,7 @@ export function buildFreshNodeAndValidateFrontmatter(opts: {
   provider: IProvider;
   bodyHash: string;
   frontmatterHash: string;
-  encoder: Tiktoken | null;
+  encoder: ITokenCounter | null;
   providerFrontmatter: IProviderFrontmatterValidator;
   strict: boolean;
 }): { node: Node; frontmatterIssues: Issue[] } {

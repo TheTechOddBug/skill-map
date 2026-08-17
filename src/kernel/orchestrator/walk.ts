@@ -12,11 +12,7 @@
 
 import { isAbsolute, resolve } from 'node:path';
 
-// js-tiktoken ships CJS subpaths without explicit `.cjs` in the import
-// specifier; type-only imports survive lint without the disable that
-// the value-import sites need.
-import type { Tiktoken } from 'js-tiktoken/lite';
-
+import type { ITokenCounter, ITokenCounterHandle } from './token-counter.js';
 import type { TPluginStore } from '../adapters/plugin-store.js';
 import type { IProviderFrontmatterValidator } from '../adapters/schema-validators.js';
 import type { IPriorExtractorRun } from '../adapters/sqlite/scan-load.js';
@@ -68,7 +64,7 @@ export interface IWalkAndExtractOptions {
   roots: string[];
   ignoreFilter?: IIgnoreFilter;
   emitter: ProgressEmitterPort;
-  encoder: Tiktoken | null;
+  encoder: ITokenCounterHandle | null;
   strict: boolean;
   enableCache: boolean;
   /**
@@ -450,6 +446,12 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
   const accum = createWalkAccumulators();
   const wctx = buildWalkContext(opts);
 
+  // Spec § 9.6.2, orphan sidecar sweep. Started HERE so its own
+  // `.sm`-driven traversal overlaps the provider walk below; awaited
+  // right before the result is assembled. The sweep reads nothing the
+  // walk writes (and vice versa), so the overlap is free.
+  const orphanSidecarsPending = discoverOrphanSidecars(opts.roots);
+
   // Path-dedup across the multi-provider walk. Spec § Provider
   // dispatch (architecture.md): every Provider walks the full root,
   // but each file is offered to at most ONE Provider's `classify`.
@@ -568,11 +570,10 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
   // (uncached) scan and when there is no prior snapshot. See the helper.
   carryForwardVirtualNodes(accum, opts.prior?.nodes);
 
-  // Spec § 9.6.2, orphan sidecar sweep. Walks the same roots
-  // looking for `*.sm` whose sibling `*.md` is missing. The list
+  // Orphan sidecar sweep, started at the top of this function. The list
   // flows through to the rule pass; `annotation-orphan` emits one
   // warning per entry.
-  const orphanSidecars = discoverOrphanSidecars(opts.roots);
+  const orphanSidecars = await orphanSidecarsPending;
 
   return {
     nodes: accum.nodes,
@@ -1400,7 +1401,14 @@ async function applyExtractPath(
   wctx: IWalkContext,
   accum: IWalkAccumulators,
 ): Promise<void> {
-  const node = buildOrReuseNode(ctx, wctx, accum);
+  const partialCacheHit = isPartialCacheHit(ctx);
+  // Resolve the lazy token counter ONLY for a fresh build: the
+  // partial-cache branch clones the prior node's counts and never
+  // encodes, so it must not trigger the one-time encoding load.
+  const counter = !partialCacheHit && wctx.opts.encoder !== null
+    ? await wctx.opts.encoder.resolve()
+    : null;
+  const node = buildOrReuseNode(ctx, wctx, accum, counter);
   // Spec § 9.6.2, sidecar overlay applies to BOTH freshly-built and
   // partial-cache nodes. Done after the node is in `accum.nodes` so a
   // downstream consumer iterating `nodes` sees the overlay applied
@@ -1408,7 +1416,6 @@ async function applyExtractPath(
   const sidecarIssues = attachSidecar(node, ctx.sidecarResolution, accum.sidecarRoots);
   for (const issue of sidecarIssues) accum.frontmatterIssues.push(issue);
 
-  const partialCacheHit = isPartialCacheHit(ctx);
   emitExtractProgress(ctx, wctx, partialCacheHit);
 
   // Decide which extractors actually run. Full re-extract → all
@@ -1521,6 +1528,7 @@ function buildOrReuseNode(
   ctx: IProcessNodeContext,
   wctx: IWalkContext,
   accum: IWalkAccumulators,
+  counter: ITokenCounter | null,
 ): Node {
   if (isPartialCacheHit(ctx) && ctx.priorNode) {
     const partial = cloneNodeAndReshapeLinks({
@@ -1543,7 +1551,7 @@ function buildOrReuseNode(
     provider: ctx.provider,
     bodyHash: ctx.bodyHash,
     frontmatterHash: ctx.frontmatterHash,
-    encoder: wctx.opts.encoder,
+    encoder: counter,
     providerFrontmatter: wctx.opts.providerFrontmatter,
     strict: wctx.opts.strict,
   });

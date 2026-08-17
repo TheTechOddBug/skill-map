@@ -483,6 +483,14 @@ CREATE TABLE scan_meta (
   -- greenfield posture) forces a one-time cache rebuild instead of surfacing
   -- later as a "no such column" query error.
   schema_fingerprint TEXT,
+  -- Whole-result fingerprint: sha256 over the canonical persisted content of
+  -- the last scan (nodes, links, issues, extractor runs sans ran_at,
+  -- contributions, link scores, tags, meta content sans timestamps). When the
+  -- next persist computes the same value and carries no out-of-band inputs
+  -- (renames, enrichments, freshly-run extractor tuples), the replace-all
+  -- write is skipped and only this row refreshes. NULL on a pre-feature DB
+  -- and on synthetic writes that bypass the fingerprint path.
+  result_fingerprint TEXT,
   CONSTRAINT ck_scan_meta_singleton CHECK (id = 1)
 );
 

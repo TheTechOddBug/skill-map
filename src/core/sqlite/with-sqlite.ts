@@ -51,7 +51,6 @@ import { existsSync } from 'node:fs';
 
 import type { Kysely } from 'kysely';
 
-import { createSqliteStorage } from '../../kernel/adapters/sqlite/index.js';
 import type { ISqliteStorageAdapterOptions } from '../../kernel/adapters/sqlite/index.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
@@ -106,6 +105,13 @@ export async function withSqlite<T>(
   options: IWithSqliteOptions,
   fn: (adapter: StoragePort) => Promise<T>,
 ): Promise<T> {
+  // Deferred value import (2026-08 perf sprint): the sqlite adapter
+  // subgraph drags kysely's ~254 ESM files into the module graph, the
+  // single largest share of CLI startup. Loading it here (first
+  // statement of the only production entry point into the adapter)
+  // removes the whole subtree from every verb that never opens the DB;
+  // the type-only imports above cost nothing at runtime.
+  const { createSqliteStorage } = await import('../../kernel/adapters/sqlite/index.js');
   const adapter = createSqliteStorage(options);
   await adapter.init();
   try {

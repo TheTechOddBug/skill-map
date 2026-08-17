@@ -1,7 +1,7 @@
 /**
  * `RunScanOptions.tokenizer` end-to-end: the resolved encoder name
- * actually selects which `js-tiktoken` rank table builds the per-node
- * `tokens` counts, and is carried onto `ScanResult.tokenizer`.
+ * actually selects which encoding (`cl100k_base` / `o200k_base`) builds
+ * the per-node `tokens` counts, and is carried onto `ScanResult.tokenizer`.
  *
  * Behaviour pinned here:
  *   - default (no `tokenizer`) → `cl100k_base`, and `result.tokenizer`

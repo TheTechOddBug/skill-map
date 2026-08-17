@@ -272,6 +272,17 @@ export interface IScanMetaTable {
    * `ScanResult` field.
    */
   schemaFingerprint: string | null;
+  /**
+   * Whole-result fingerprint: sha256 (hex) over the canonical persisted
+   * content of the scan (see `computeResultFingerprint` in
+   * `scan-persistence.ts` for the exact input set). The next persist
+   * compares its own fingerprint against this value and skips the
+   * replace-all write when they match and no out-of-band inputs
+   * (renames, enrichments, freshly-run tuples) ride along. NULL on a
+   * pre-feature DB / synthetic writes. Internal DB metadata, NOT a
+   * `ScanResult` field.
+   */
+  resultFingerprint: string | null;
 }
 
 /**

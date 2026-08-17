@@ -249,14 +249,27 @@ async function sweepCatalogContributions(
     .selectFrom('scan_contributions')
     .select(['pluginId', 'extensionId', 'contributionId'])
     .execute();
+  // Group the dead rows per (pluginId, extensionId) and delete each
+  // group with one `IN` statement instead of one DELETE per row (the
+  // SELECT above returns every row, so a big catalog paid a big loop).
+  const deadByExtension = new Map<string, { pluginId: string; extensionId: string; ids: Set<string> }>();
   for (const r of allRows) {
     const key = `${r.pluginId}/${r.extensionId}/${r.contributionId}`;
     if (registeredKeys.has(key)) continue;
+    const groupKey = `${r.pluginId}\x00${r.extensionId}`;
+    let group = deadByExtension.get(groupKey);
+    if (!group) {
+      group = { pluginId: r.pluginId, extensionId: r.extensionId, ids: new Set() };
+      deadByExtension.set(groupKey, group);
+    }
+    group.ids.add(r.contributionId);
+  }
+  for (const group of deadByExtension.values()) {
     await trx
       .deleteFrom('scan_contributions')
-      .where('pluginId', '=', r.pluginId)
-      .where('extensionId', '=', r.extensionId)
-      .where('contributionId', '=', r.contributionId)
+      .where('pluginId', '=', group.pluginId)
+      .where('extensionId', '=', group.extensionId)
+      .where('contributionId', 'in', [...group.ids])
       .execute();
   }
 }

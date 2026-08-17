@@ -998,7 +998,7 @@ These deps live in `ui/package.json` only. The kernel does NOT import them and M
 - **DB**: SQLite via `node:sqlite` (zero native deps).
 - **Data-access**: **Kysely + CamelCasePlugin** (typed query builder, not an ORM).
 - **Logger**: `pino` (JSON lines).
-- **Tokenizer**: `js-tiktoken`, selected by the `tokenizer` project-config key from a closed allow-list of two encoders, `cl100k_base` (default) and `o200k_base`. The chosen rank table is lazily imported per scan (bundler-safe literal dynamic imports), the resolved encoder is persisted in `scan_meta.tokenizer` / `ScanResult.tokenizer`, and changing it forces a token recompute on the next incremental scan (the cache cannot serve counts from the other encoder).
+- **Tokenizer**: `gpt-tokenizer` (pure JS; replaced `js-tiktoken` in the 2026-08-17 perf sprint: ~4x faster init, ~7x faster encode, identical counts on the perf corpus), selected by the `tokenizer` project-config key from a closed allow-list of two encodings, `cl100k_base` (default) and `o200k_base`. Construction is LAZY behind `ITokenCounterHandle` (`kernel/orchestrator/token-counter.ts`): a fully-warm scan never loads an encoding at all, and the chosen subpath is imported via bundler-safe literal dynamic imports. The resolved encoder is persisted in `scan_meta.tokenizer` / `ScanResult.tokenizer`, and changing it forces a token recompute on the next incremental scan (the cache cannot serve counts from the other encoder). Special-token policy: token counting never throws; a literal `<|endoftext|>` in prose is counted as plain text (the js-tiktoken engine aborted the whole scan on such a file, a latent bug fixed by the swap).
 - **Semver**: `semver` npm package.
 - **File watcher** (Step 7): the primary scan watcher is selectable via `scan.watch.backend` (`chokidar` default) and the per-invocation `--watch-backend <chokidar|parcel>` flag (overrides the setting on `sm serve` / `sm watch` / `sm scan --watch`). `chokidar` (one `fs.watch` per directory) observes changes behind followed symlinks, so a live edit inside a symlinked directory refreshes the map; `parcel` uses `@parcel/watcher` (a single native inotify instance, scales to huge trees without chokidar's per-directory `EMFILE` exhaustion) but does not live-watch behind a symlinked directory (the initial walk still follows the link). The meta-watcher (config files at `depth: 0`, which parcel cannot express) is always `chokidar`. Both sit behind the `IFsWatcher` interface (`kernel/scan/watcher.ts`); selection is `resolveWatcherBackend` in `core/watcher/runtime.ts`.
 - **Package layout**: pnpm workspaces, `spec/` (`@skill-map/spec`), `src/` (`@skill-map/cli`, with subpath `exports` for `./kernel` and `./conformance`), `ui/` (private, joins at Step 0c). The `alias/*` glob held un-scoped placeholder packages (`skill-map`, `skill-mapper`) for one publish round; once the names were locked on npm and a `npm deprecate` notice routed users to `@skill-map/cli`, the workspaces were dropped. Further `@skill-map/*` splits deferred until a concrete external consumer justifies them.
@@ -1302,6 +1302,23 @@ plugin wrapper, the `sm ui` verb):
 [`context/roadmap-history.md`](./context/roadmap-history.md#step-15-distribution-polish).
 
 ### ▶ v1.0.0, full distributable
+
+---
+
+## Performance
+
+**Node perf sprint (landed 2026-08-17).** Follow-up of the Rust/Go rewrite evaluation (2026-08-16, artifact "The Rewrite Question"): the measured slowness was implementation overhead inside Node, not a runtime ceiling, so the rewrite was rejected and the waste recovered in place. Four workstreams, all internal (no new flags, no contract surface beyond two spec description strings):
+
+- **W1, tokenizer swap**: `js-tiktoken` -> `gpt-tokenizer` behind a lazy `ITokenCounterHandle` (see §Stack conventions · Tokenizer). Also fixed the latent scan-abort on literal special tokens in prose.
+- **W2, persist fingerprint**: `persistScanResult` computes a sha256 over the canonical persisted content and SKIPS the replace-all rewrite when it matches `scan_meta.result_fingerprint` and no out-of-band inputs (renames, enrichments) ride along; only `scan_meta` refreshes. The freshly-run tuple set participates in the fingerprint as content (analyzers re-run every scan, so an empty-tuples gate would never engage); `emittedAt` provenance stamps are canonicalized out like `ranAt`. Plus: per-connection prepared-statement LRU in the `node:sqlite` dialect, AST-based query dispatch (no regex over 0.5 MB INSERT strings), 250-row insert chunks that share SQL text, tags full-wipe simplification, the stranded-orphan probe collapsed to one UNION query.
+- **W3, ordered read-ahead**: `mapOrderedPrefetch` (`kernel/scan/ordered-prefetch.ts`, 16-deep, order-preserving by construction) overlaps file reads + parses in the traversal walk; per-directory lstat prefetch; the orphan-sidecar sweep went async and runs concurrently with the provider walk. Yield order stays byte-identical (claimedPaths / truncation / progress-index surfaces are order-load-bearing).
+- **W4, startup Tier A**: V8 compile cache in `bin/sm.js`; the kysely/sqlite adapter subgraph (254 ESM files) deferred behind its two value entry points (`core/sqlite/with-sqlite.ts`, `db/migrate.ts`); conformance runner and both watcher backends (chokidar tree + @parcel/watcher native dlopen) lazy. Eager graph on `sm --version`: ~302 -> 45 ESM modules.
+
+Measured on `fixtures/perf` (1,003 nodes, WSL2, Node 26) before -> after: `sm --version` ~300 -> ~160 ms wall; cold scan kernel phase 2,079 -> ~1,400 ms; fully-warm scan kernel phase ~880 -> ~560-650 ms (the fingerprint skip engages; wall ~0.83 s). Remaining known lever, deliberately deferred: the per-node SYNC sidecar overlay read (`existsSync` + `readFileSync` in `sidecar/parse.ts`, noted in `resolveSidecarOverlay`'s doc); pick it up if the warm target (<= 350 ms kernel phase) becomes pressing.
+
+**Standing perf budget (K1 trigger)**: a fully-warm rescan of a 10k-node corpus must stay under 2 s kernel phase on 8 cores. Crossing it re-opens the perf conversation (more in-place work first, K1-style kernel surgery second).
+
+**Rewrite gate (K2)**: any future kernel-binary / Rust / Go discussion is gated on the OPEN spec question "out-of-process plugin protocol", plugins execute in-process JS today, so a non-Node kernel is not designable before that protocol exists. Record new evidence against these two markers instead of re-litigating the 2026-08-16 evaluation.
 
 ---
 

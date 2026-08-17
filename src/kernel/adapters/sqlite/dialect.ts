@@ -105,14 +105,33 @@ class NodeSqliteDriver implements Driver {
   }
 
   async destroy(): Promise<void> {
+    this.#connection?.clearStatementCache();
     this.#db?.close();
     this.#db = null;
     this.#connection = null;
   }
 }
 
+/**
+ * Prepared-statement cache cap. The kernel's working set of distinct
+ * SQL strings is small (replace-all deletes, chunked inserts with a
+ * shared shape, the job-claim UPDATE, a handful of SELECTs); 64 covers
+ * it with room while bounding memory if a pathological caller streams
+ * unique SQL text.
+ */
+const STATEMENT_CACHE_CAP = 64;
+
 class NodeSqliteConnection implements DatabaseConnection {
   readonly #db: DatabaseSync;
+  /**
+   * LRU statement cache keyed by SQL text. `db.prepare` re-parses and
+   * re-plans on every call; the scan persist alone issues hundreds of
+   * identically-shaped statements per run. node:sqlite statements are
+   * rebindable (`.all(...params)` / `.run(...params)`) and re-prepare
+   * themselves internally on schema change (prepare_v2 semantics), so
+   * caching is transparent.
+   */
+  readonly #stmtCache = new Map<string, StatementSync>();
 
   constructor(db: DatabaseSync) {
     this.#db = db;
@@ -122,11 +141,34 @@ class NodeSqliteConnection implements DatabaseConnection {
     this.#db.exec(sql);
   }
 
+  clearStatementCache(): void {
+    this.#stmtCache.clear();
+  }
+
+  #prepare(sql: string): StatementSync {
+    const cached = this.#stmtCache.get(sql);
+    if (cached) {
+      // Refresh recency: Map iteration order is insertion order, so
+      // delete + set moves the entry to the back of the eviction queue.
+      this.#stmtCache.delete(sql);
+      this.#stmtCache.set(sql, cached);
+      return cached;
+    }
+    const stmt = this.#db.prepare(sql);
+    if (this.#stmtCache.size >= STATEMENT_CACHE_CAP) {
+      const oldest = this.#stmtCache.keys().next().value;
+      if (oldest !== undefined) this.#stmtCache.delete(oldest);
+    }
+    this.#stmtCache.set(sql, stmt);
+    return stmt;
+  }
+
   async executeQuery<R>(query: CompiledQuery): Promise<QueryResult<R>> {
-    const stmt: StatementSync = this.#db.prepare(query.sql);
+    const stmt = this.#prepare(query.sql);
     const params = query.parameters as never[];
 
-    if (isReadQuery(query.sql)) {
+    const kind = classifyCompiled(query);
+    if (kind === 'read') {
       return { rows: stmt.all(...params) as R[] };
     }
 
@@ -138,7 +180,7 @@ class NodeSqliteConnection implements DatabaseConnection {
     // spec/job-lifecycle.md §Atomic claim) reads its identity back.
     // `numAffectedRows` equals the returned-row count for a RETURNING DML,
     // so downstream `numUpdatedRows` / `numDeletedRows` stay correct.
-    if (hasReturning(query.sql)) {
+    if (kind === 'returning') {
       const rows = stmt.all(...params) as R[];
       return { rows, numAffectedRows: BigInt(rows.length) };
     }
@@ -159,6 +201,36 @@ class NodeSqliteConnection implements DatabaseConnection {
 interface IRunInfo {
   changes?: number | bigint;
   lastInsertRowid?: number | bigint;
+}
+
+/**
+ * Dispatch a compiled query by its Kysely AST root instead of sniffing
+ * the SQL text: `query.query.kind` is authoritative for every
+ * builder-produced statement, and the DML nodes carry their `returning`
+ * clause as a structural field, so no regex ever scans a ~0.5 MB
+ * chunked-INSERT string. Raw statements (`` sql`...` `` templates:
+ * PRAGMAs, checkpoints) fall back to the string sniffing, which then
+ * only ever sees short SQL.
+ */
+function classifyCompiled(query: CompiledQuery): 'read' | 'returning' | 'write' {
+  const node = query.query as { kind?: string; returning?: unknown };
+  switch (node.kind) {
+    case 'SelectQueryNode':
+      return 'read';
+    case 'InsertQueryNode':
+    case 'UpdateQueryNode':
+    case 'DeleteQueryNode':
+    case 'MergeQueryNode':
+      return node.returning !== undefined ? 'returning' : 'write';
+    default:
+      return classifyRawSql(query.sql);
+  }
+}
+
+/** String-sniffing fallback for raw statements (PRAGMAs, checkpoints). */
+function classifyRawSql(sql: string): 'read' | 'returning' | 'write' {
+  if (isReadQuery(sql)) return 'read';
+  return hasReturning(sql) ? 'returning' : 'write';
 }
 
 /** A read (`SELECT` / `WITH`) statement, dispatched through `.all()`. */

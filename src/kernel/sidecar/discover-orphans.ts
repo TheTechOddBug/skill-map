@@ -11,10 +11,14 @@
  *
  * Implementation is intentionally a fresh walk (rather than piggy-
  * backing on the Provider walk): orphans are exactly the `.sm` files
- * whose node no longer exists, so we need an `.sm`-driven sweep.
+ * whose node no longer exists, so we need an `.sm`-driven sweep. The
+ * walk is async (fs/promises) so the orchestrator can run it
+ * CONCURRENTLY with the main provider walk; traversal order is
+ * unchanged from the historical sync version (entries in `readdir`
+ * order, awaited at their own position).
  */
 
-import { readdirSync, statSync } from 'node:fs';
+import { readdir, stat } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 
 export interface IOrphanSidecar {
@@ -42,13 +46,13 @@ export interface IOrphanSidecar {
  * directory are swallowed silently; the walk degrades to "no orphans
  * found in that subtree".
  */
-export function discoverOrphanSidecars(
+export async function discoverOrphanSidecars(
   roots: readonly string[],
   shouldSkip?: (relativePath: string) => boolean,
-): IOrphanSidecar[] {
+): Promise<IOrphanSidecar[]> {
   const out: IOrphanSidecar[] = [];
   for (const root of roots) {
-    walk(root, root, shouldSkip ?? (() => false), out);
+    await walk(root, root, shouldSkip ?? (() => false), out);
   }
   return out;
 }
@@ -57,15 +61,15 @@ export function discoverOrphanSidecars(
 // symlink check, isDirectory recursion, isFile + extension check). The
 // shape mirrors the Claude Provider's walker, same tradeoff applies.
 // eslint-disable-next-line complexity
-function walk(
+async function walk(
   root: string,
   current: string,
   shouldSkip: (relativePath: string) => boolean,
   out: IOrphanSidecar[],
-): void {
+): Promise<void> {
   let entries;
   try {
-    entries = readdirSync(current, { withFileTypes: true, encoding: 'utf8' });
+    entries = await readdir(current, { withFileTypes: true, encoding: 'utf8' });
   } catch {
     return;
   }
@@ -75,7 +79,7 @@ function walk(
     if (shouldSkip(rel)) continue;
     if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) {
-      walk(root, full, shouldSkip, out);
+      await walk(root, full, shouldSkip, out);
       continue;
     }
     if (!entry.isFile()) continue;
@@ -88,14 +92,14 @@ function walk(
     // form anchor. Present either way -> not orphan. Checking only `<stem>.md`
     // (the old behaviour) falsely stranded every non-`.md` node's sidecar.
     const stem = full.slice(0, -'.sm'.length);
-    if (safeIsFile(stem) || safeIsFile(`${stem}.md`)) continue;
+    if ((await safeIsFile(stem)) || (await safeIsFile(`${stem}.md`))) continue;
     out.push({ sidecarPath: full, relativePath: rel, expectedMdPath: `${stem}.md` });
   }
 }
 
-function safeIsFile(path: string): boolean {
+async function safeIsFile(path: string): Promise<boolean> {
   try {
-    return statSync(path).isFile();
+    return (await stat(path)).isFile();
   } catch {
     return false;
   }

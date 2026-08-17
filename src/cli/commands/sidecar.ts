@@ -336,7 +336,7 @@ export class SidecarPruneCommand extends SmCommand {
     // discover walker accepts a list of roots; for prune we use the
     // single project root, symmetric with the orphan-rule consumer
     // in the orchestrator.
-    const orphans = discoverOrphanSidecars([ctx.cwd]);
+    const orphans = await discoverOrphanSidecars([ctx.cwd]);
 
     const ansi = this.ansiFor('stdout');
     const okGlyph = ansi.green('✓');

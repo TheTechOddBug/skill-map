@@ -39,9 +39,12 @@ import type { Stats } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { resolve, relative, sep } from 'node:path';
 
-import chokidar from 'chokidar';
+// Both watcher backends are loaded LAZILY inside their factories
+// (2026-08 perf sprint): chokidar drags its readdirp tree and
+// @parcel/watcher performs a native `dlopen` at import time, costs every
+// non-watch verb used to pay on boot. Type-only imports are free.
 import type { FSWatcher } from 'chokidar';
-import parcelWatcher from '@parcel/watcher';
+import type { AsyncSubscription } from '@parcel/watcher';
 
 import type { IIgnoreFilter } from './ignore.js';
 import { readGitignoreText, readIgnoreFileText } from './ignore.js';
@@ -397,35 +400,46 @@ export function createChokidarWatcher(opts: ICreateFsWatcherOptions): IFsWatcher
     escapesRoots,
   );
 
-  const watcher: FSWatcher = chokidar.watch(absRoots, {
-    ignoreInitial: true,
-    persistent: true,
-    ...(ignored ? { ignored } : {}),
-    ...(opts.depth !== undefined ? { depth: opts.depth } : {}),
-  });
-
   const batcher = createDebouncedBatcher({
     debounceMs: opts.debounceMs,
     onBatch: opts.onBatch,
     ...(opts.onError ? { onError: opts.onError } : {}),
   });
 
-  watcher.on('add', (p) => batcher.enqueue('add', p));
-  watcher.on('change', (p) => batcher.enqueue('change', p));
-  watcher.on('unlink', (p) => batcher.enqueue('unlink', p));
-  if (opts.onError) {
-    watcher.on('error', (err) => {
-      opts.onError?.(err instanceof Error ? err : new Error(String(err)));
+  // Lazy backend load: the factory stays synchronous (the batcher and
+  // the returned facade exist immediately); chokidar itself loads on
+  // first use. Behavior delta vs the eager import: a broken chokidar
+  // install now surfaces when a watch STARTS (through `ready`) instead
+  // of crashing every verb at module load, a strict improvement.
+  const watcherPromise: Promise<FSWatcher> = import('chokidar').then(({ default: chokidar }) => {
+    const watcher = chokidar.watch(absRoots, {
+      ignoreInitial: true,
+      persistent: true,
+      ...(ignored ? { ignored } : {}),
+      ...(opts.depth !== undefined ? { depth: opts.depth } : {}),
     });
-  }
-
-  const ready: Promise<void> = new Promise((resolveReady) => {
-    watcher.once('ready', () => resolveReady());
+    watcher.on('add', (p) => batcher.enqueue('add', p));
+    watcher.on('change', (p) => batcher.enqueue('change', p));
+    watcher.on('unlink', (p) => batcher.enqueue('unlink', p));
+    if (opts.onError) {
+      watcher.on('error', (err) => {
+        opts.onError?.(err instanceof Error ? err : new Error(String(err)));
+      });
+    }
+    return watcher;
   });
+
+  const ready: Promise<void> = watcherPromise.then(
+    (watcher) =>
+      new Promise((resolveReady) => {
+        watcher.once('ready', () => resolveReady());
+      }),
+  );
 
   const close = async (): Promise<void> => {
     await batcher.drain();
-    await watcher.close();
+    const watcher = await watcherPromise.catch(() => null);
+    if (watcher) await watcher.close();
   };
 
   return { ready, close };
@@ -486,22 +500,29 @@ export function createParcelWatcher(opts: ICreateFsWatcherOptions): IFsWatcher {
     return !filter.ignores(rel);
   };
 
-  const subscriptions = absRoots.map((root) =>
-    parcelWatcher.subscribe(
-      root,
-      (err, events) => {
-        if (err) {
-          opts.onError?.(err instanceof Error ? err : new Error(String(err)));
-          return;
-        }
-        for (const ev of events) {
-          if (!accept(ev.path)) continue;
-          const kind: TWatchEventKind =
-            ev.type === 'create' ? 'add' : ev.type === 'delete' ? 'unlink' : 'change';
-          batcher.enqueue(kind, ev.path);
-        }
-      },
-      { ignore: parcelIgnore },
+  // Lazy backend load (see the chokidar twin above): the native dlopen
+  // now happens when a watch starts, not on every CLI boot. `ready` /
+  // `close` already treat subscriptions as promises, so the extra
+  // module-load hop composes for free.
+  const parcelModule = import('@parcel/watcher');
+  const subscriptions: Promise<AsyncSubscription>[] = absRoots.map((root) =>
+    parcelModule.then(({ default: parcelWatcher }) =>
+      parcelWatcher.subscribe(
+        root,
+        (err, events) => {
+          if (err) {
+            opts.onError?.(err instanceof Error ? err : new Error(String(err)));
+            return;
+          }
+          for (const ev of events) {
+            if (!accept(ev.path)) continue;
+            const kind: TWatchEventKind =
+              ev.type === 'create' ? 'add' : ev.type === 'delete' ? 'unlink' : 'change';
+            batcher.enqueue(kind, ev.path);
+          }
+        },
+        { ignore: parcelIgnore },
+      ),
     ),
   );
 

@@ -58,6 +58,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import type { IRawNode } from '../extensions/provider.js';
 import { isPathContained } from '../util/path-containment.js';
+import { mapOrderedPrefetch } from './ordered-prefetch.js';
 import { buildIgnoreFilter, type IIgnoreFilter } from './ignore.js';
 import { getParser } from './parsers/index.js';
 import type { IParseIssue } from './parsers/types.js';
@@ -249,14 +250,37 @@ async function* walkTraversal(
       continue;
     }
     ctx.chain.add(rootReal);
-    for await (const entry of walkRoot(root, root, rootReal, ctx)) {
-      const relPath = relative(root, entry.full).split(sep).join('/');
-      const rec = await traversedEntryToNode(entry, relPath, options.priorMtimes, parser, bodyField);
+    // Ordered bounded read-ahead: up to READ_AHEAD_FILES file reads +
+    // parses overlap while the traversal keeps pulling entries; yield
+    // order stays byte-identical to the serial loop this replaces (the
+    // downstream first-wins / truncation / progress-index surfaces are
+    // all order-load-bearing). The mtime gate inside
+    // `traversedEntryToNode` precedes any read, so unchanged files are
+    // still never read. An early consumer break (the orchestrator's
+    // scan-ceiling `break`) propagates `return()` through the prefetch
+    // into `walkRoot`.
+    for await (const rec of mapOrderedPrefetch(
+      walkRoot(root, root, rootReal, ctx),
+      READ_AHEAD_FILES,
+      (entry) => {
+        const relPath = relative(root, entry.full).split(sep).join('/');
+        return traversedEntryToNode(entry, relPath, options.priorMtimes, parser, bodyField);
+      },
+    )) {
       if (rec !== null) yield rec;
     }
     ctx.chain.delete(rootReal);
   }
 }
+
+/**
+ * Read-ahead depth for the traversal walk. Bounded memory: at worst
+ * READ_AHEAD_FILES bodies are buffered at once, 16 x the 1 MiB
+ * `scan.maxFileSizeBytes` default = 16 MiB. Deliberately hardcoded
+ * (not config-surfaced): it is an implementation knob with no
+ * user-observable behavior, and a wrong user value could only hurt.
+ */
+const READ_AHEAD_FILES = 16;
 
 /**
  * Turn one traversed `IWalkEntry` into the `IRawNode` to yield, or `null`
@@ -523,23 +547,24 @@ async function statScopedFile(
  * TOCTOU-aligned stat for the TRAVERSAL path: `lstat` (NOT `stat`)
  * re-verifies that the entry `readdir` reported as a regular file still
  * is one, so a benign `.md` swapped for a symlink in the race window is
- * rejected (audit H1). Legitimate symlinks never reach here, traversal
- * routes them through `followSymlink`, which knows from `readdir` that
- * the entry is a link. The scoped path needs the opposite treatment (it
- * has no `readdir` verdict to lean on) and uses `statScopedFile`.
+ * rejected by `acceptRegularFile` (audit H1: the leaf is then a
+ * symlink, so `isFile()` is false). Legitimate symlinks never reach
+ * here, traversal routes them through `followSymlink`, which knows from
+ * `readdir` that the entry is a link. The scoped path needs the
+ * opposite treatment (it has no `readdir` verdict to lean on) and uses
+ * `statScopedFile`.
+ *
+ * Only the syscall lives here so `walkRoot` can PREFETCH it per
+ * directory; the accept decision (`acceptRegularFile`, including the
+ * `onOversizedFile` callback) deliberately runs at yield position so
+ * the oversized-report order stays deterministic.
  */
-async function statRegularFile(
-  full: string,
-  relPath: string,
-  sizeLimit: IWalkSizeLimit,
-): Promise<import('node:fs').Stats | null> {
-  let s;
+async function lstatSafe(full: string): Promise<import('node:fs').Stats | null> {
   try {
-    s = await lstat(full);
+    return await lstat(full);
   } catch {
     return null; // vanished between readdir and the stat
   }
-  return acceptRegularFile(s, relPath, sizeLimit);
 }
 
 /**
@@ -817,6 +842,11 @@ async function* walkRoot(
   } catch {
     return;
   }
+  // Per-directory stat prefetch: kick off the `lstat` for every matching
+  // regular-file entry concurrently, then consume the results at each
+  // entry's ORIGINAL position below. Directory recursion and symlink
+  // resolution stay strictly serial (they mutate the shared ctx.chain).
+  const statAhead = prefetchDirStats(entries, root, current, ctx);
   for (const entry of entries) {
     const name = entry.name;
     const full = join(current, name);
@@ -845,16 +875,39 @@ async function* walkRoot(
       yield* walkRoot(root, full, realChild, ctx);
       ctx.chain.delete(realChild);
     } else if (entry.isFile() && hasMatchingExtension(name, ctx.extensions)) {
-      // TOCTOU re-check (audit H1): `readdir` reported a regular file;
-      // `statRegularFile`'s `lstat` (NOT `stat`) re-verifies before the
-      // read, so a benign `.md` swapped for a symlink to `~/.ssh/id_rsa`
-      // in the race window is rejected (the leaf is then a symlink, so
-      // `isFile()` is false). It also applies the `maxFileSizeBytes`
-      // guard and supplies the rounded mtime.
-      const s = await statRegularFile(full, rel, ctx.sizeLimit);
+      // TOCTOU re-check (audit H1): the (possibly prefetched) `lstat`
+      // re-verifies the `readdir` verdict before the read; the accept
+      // decision (`isFile()` + `maxFileSizeBytes` + oversized callback)
+      // runs HERE, at yield position, so report order is deterministic.
+      const stats = await (statAhead.get(full) ?? lstatSafe(full));
+      const s = stats === null ? null : acceptRegularFile(stats, rel, ctx.sizeLimit);
       if (s !== null) yield { full, modifiedAtMs: Math.round(s.mtimeMs) };
     }
   }
+}
+
+/**
+ * Start the `lstat` for every entry the file branch of `walkRoot` will
+ * consume, keyed by absolute path. Mirrors that branch's own filters
+ * (regular file, matching extension, not ignored) so no extra syscalls
+ * fire for entries the loop would skip. `lstatSafe` never rejects, so
+ * the parked promises cannot surface unhandled rejections.
+ */
+function prefetchDirStats(
+  entries: readonly import('node:fs').Dirent[],
+  root: string,
+  current: string,
+  ctx: IWalkRootCtx,
+): Map<string, Promise<import('node:fs').Stats | null>> {
+  const ahead = new Map<string, Promise<import('node:fs').Stats | null>>();
+  for (const entry of entries) {
+    if (!entry.isFile() || !hasMatchingExtension(entry.name, ctx.extensions)) continue;
+    const full = join(current, entry.name);
+    const rel = relative(root, full).split(sep).join('/');
+    if (ctx.filter.ignores(rel)) continue;
+    ahead.set(full, lstatSafe(full));
+  }
+  return ahead;
 }
 
 function hasMatchingExtension(name: string, extensions: readonly string[]): boolean {

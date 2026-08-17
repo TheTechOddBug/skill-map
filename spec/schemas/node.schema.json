@@ -42,7 +42,7 @@
     },
     "tokens": {
       "$ref": "#/$defs/tripleSplit",
-      "description": "Size breakdown in tokens (via `js-tiktoken`): frontmatter, body, total. Optional; MAY be absent if tokenization was disabled."
+      "description": "Size breakdown in tokens (computed with the configured encoding, `cl100k_base` or `o200k_base`): frontmatter, body, total. Optional; MAY be absent if tokenization was disabled."
     },
     "modifiedAtMs": {
       "type": ["integer", "null"],

@@ -37,7 +37,6 @@ import { fileURLToPath } from 'node:url';
 
 import { Command, Option } from 'clipanion';
 
-import { runConformanceCase } from '../../conformance/index.js';
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { CONFORMANCE_TEXTS } from '../i18n/conformance.texts.js';
@@ -224,6 +223,11 @@ export class ConformanceRunCommand extends SmCommand {
       );
       return ExitCode.Error;
     }
+
+    // Deferred import (2026-08 perf sprint, mirrors `serve.ts`'s server
+    // load): the conformance runner chunk only loads when the verb
+    // actually executes, not on every CLI boot.
+    const { runConformanceCase } = await import('../../conformance/index.js');
 
     let totalPass = 0;
     let totalCases = 0;

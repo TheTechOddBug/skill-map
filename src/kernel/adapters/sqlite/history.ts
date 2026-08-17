@@ -613,113 +613,40 @@ export async function findStrandedStateOrphans(
   trx: TDbOrTx,
   livePaths: Set<string>,
 ): Promise<string[]> {
-  const stranded = new Set<string>();
-  await collectStrandedJobs(trx, livePaths, stranded);
-  await collectStrandedExecutions(trx, livePaths, stranded);
-  await collectStrandedSummaries(trx, livePaths, stranded);
-  await collectStrandedFindings(trx, livePaths, stranded);
-  await collectStrandedEnrichments(trx, livePaths, stranded);
-  await collectStrandedPluginKvs(trx, livePaths, stranded);
-  await collectStrandedFavorites(trx, livePaths, stranded);
-  return [...stranded].sort();
-}
-
-async function collectStrandedJobs(
-  trx: TDbOrTx,
-  livePaths: Set<string>,
-  stranded: Set<string>,
-): Promise<void> {
-  const rows = await trx.selectFrom('state_jobs').select(['nodeId']).distinct().execute();
-  for (const r of rows) {
-    if (!livePaths.has(r.nodeId)) stranded.add(r.nodeId);
-  }
-}
-
-/**
- * `state_executions.node_ids_json` is a JSON array; use json_each to
- * explode the array and select the distinct values in one shot.
- */
-async function collectStrandedExecutions(
-  trx: TDbOrTx,
-  livePaths: Set<string>,
-  stranded: Set<string>,
-): Promise<void> {
+  // One UNION probe over the seven `state_*` reference sources instead
+  // of seven separate round-trips (this runs unconditionally on every
+  // persist, warm scans included). `UNION` (not `UNION ALL`) dedupes in
+  // SQL, mirroring the Set the per-table collectors used to fill.
+  // Notes preserved from the historical collectors:
+  //   - `state_executions.node_ids_json` is a JSON array; `json_each`
+  //     explodes it so every element participates.
+  //   - `state_plugin_kvs` uses the empty-string sentinel for
+  //     plugin-global keys; that's not a node reference, exclude it.
   const rows = await trx
     .selectFrom(
       sql<{ value: string }>`(
-        SELECT DISTINCT je.value AS value
-        FROM state_executions, json_each(state_executions.node_ids_json) je
-      )`.as('execNodeIds'),
+        SELECT node_id AS value FROM state_jobs
+        UNION
+        SELECT je.value FROM state_executions, json_each(state_executions.node_ids_json) je
+        UNION
+        SELECT node_id FROM state_summaries
+        UNION
+        SELECT node_id FROM state_findings
+        UNION
+        SELECT node_id FROM state_enrichments
+        UNION
+        SELECT node_id FROM state_plugin_kvs WHERE node_id != ''
+        UNION
+        SELECT node_path FROM state_node_favorites
+      )`.as('stateRefs'),
     )
     .select(['value'])
     .execute();
+  const stranded = new Set<string>();
   for (const r of rows) {
     if (!livePaths.has(r.value)) stranded.add(r.value);
   }
-}
-
-async function collectStrandedSummaries(
-  trx: TDbOrTx,
-  livePaths: Set<string>,
-  stranded: Set<string>,
-): Promise<void> {
-  const rows = await trx.selectFrom('state_summaries').select(['nodeId']).distinct().execute();
-  for (const r of rows) {
-    if (!livePaths.has(r.nodeId)) stranded.add(r.nodeId);
-  }
-}
-
-async function collectStrandedFindings(
-  trx: TDbOrTx,
-  livePaths: Set<string>,
-  stranded: Set<string>,
-): Promise<void> {
-  const rows = await trx.selectFrom('state_findings').select(['nodeId']).distinct().execute();
-  for (const r of rows) {
-    if (!livePaths.has(r.nodeId)) stranded.add(r.nodeId);
-  }
-}
-
-async function collectStrandedEnrichments(
-  trx: TDbOrTx,
-  livePaths: Set<string>,
-  stranded: Set<string>,
-): Promise<void> {
-  const rows = await trx.selectFrom('state_enrichments').select(['nodeId']).distinct().execute();
-  for (const r of rows) {
-    if (!livePaths.has(r.nodeId)) stranded.add(r.nodeId);
-  }
-}
-
-/**
- * Skip the empty-string sentinel for plugin-global keys, that's not
- * a node reference.
- */
-async function collectStrandedPluginKvs(
-  trx: TDbOrTx,
-  livePaths: Set<string>,
-  stranded: Set<string>,
-): Promise<void> {
-  const rows = await trx
-    .selectFrom('state_plugin_kvs')
-    .select(['nodeId'])
-    .where('nodeId', '!=', '')
-    .distinct()
-    .execute();
-  for (const r of rows) {
-    if (!livePaths.has(r.nodeId)) stranded.add(r.nodeId);
-  }
-}
-
-async function collectStrandedFavorites(
-  trx: TDbOrTx,
-  livePaths: Set<string>,
-  stranded: Set<string>,
-): Promise<void> {
-  const rows = await trx.selectFrom('state_node_favorites').select(['nodePath']).execute();
-  for (const r of rows) {
-    if (!livePaths.has(r.nodePath)) stranded.add(r.nodePath);
-  }
+  return [...stranded].sort();
 }
 
 // --- FK migration ---------------------------------------------------------

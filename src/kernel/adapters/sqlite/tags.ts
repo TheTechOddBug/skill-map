@@ -30,36 +30,23 @@ export interface ITagRecord {
 /**
  * Persist the per-scan tag buffer.
  *
- * Replace-all per node: orphan-sweep rows whose `node_path` is NOT in
- * the live set, then wipe + reinsert rows for live nodes from the
- * buffer. Pure replace-all is safe here (unlike `scan_contributions`)
- * because tag projection is cheap and unconditional, every persisted
- * scan rebuilds the table for the live node set whether nodes hit the
- * scan cache or not.
+ * Plain replace-all: one unconditional wipe, then reinsert the buffer.
+ * The historical two-DELETE split ("not in live set" + "in live set")
+ * was set-theoretically the same full wipe while binding up to
+ * `scan.maxScan` placeholders twice per scan; `livePaths` stays in the
+ * signature because callers thread it and a future partial rebuild
+ * would need it back. Pure replace-all is safe here (unlike
+ * `scan_contributions`) because tag projection is cheap and
+ * unconditional, every persisted scan rebuilds the table for the live
+ * node set whether nodes hit the scan cache or not.
  */
 export async function replaceAllScanTags(
   trx: Transaction<IDatabase>,
   records: readonly ITagRecord[],
-  livePaths: ReadonlySet<string> = new Set(),
+  _livePaths: ReadonlySet<string> = new Set(),
 ): Promise<void> {
-  // 1) Orphan sweep, drop rows for nodes that disappeared. When no
-  //    live set is supplied (legacy / test callers), fall through to
-  //    full wipe so the table resets cleanly.
-  if (livePaths.size > 0) {
-    const livePathsArr = [...livePaths];
-    await trx
-      .deleteFrom('scan_node_tags')
-      .where('nodePath', 'not in', livePathsArr)
-      .execute();
-    // 2) Wipe rows for live nodes, replace-all per-node.
-    await trx
-      .deleteFrom('scan_node_tags')
-      .where('nodePath', 'in', livePathsArr)
-      .execute();
-  } else {
-    await trx.deleteFrom('scan_node_tags').execute();
-  }
-  // 3) Insert the buffer.
+  await trx.deleteFrom('scan_node_tags').execute();
+  // Insert the buffer.
   if (records.length === 0) return;
   const rows: Insertable<IScanNodeTagsTable>[] = records.map((r) => ({
     nodePath: r.nodePath,

@@ -14,7 +14,7 @@
     "tokenizer": {
       "type": "string",
       "enum": ["cl100k_base", "o200k_base"],
-      "description": "Closed allow-list of the offline tokenizer used to compute per-node token counts during scan. Exactly two encoders are supported, both shipped in `js-tiktoken`: `cl100k_base` (the default, the modern OpenAI tokenizer used by GPT-4 / GPT-3.5) and `o200k_base` (the GPT-4o family tokenizer). When absent the default `cl100k_base` applies. An out-of-set value is dropped with a warning by the config loader's AJV `enum` check and the merged value falls back to the default. The resolved encoder is persisted in `scan_meta.tokenizer` so consumers know which encoder produced the numbers. Changing this invalidates prior per-node counts on the next scan (the incremental cache path force-recomputes token counts when the persisted encoder differs from the resolved one)."
+      "description": "Closed allow-list of the offline tokenizer used to compute per-node token counts during scan. Exactly two encodings are supported: `cl100k_base` (the default, the modern OpenAI tokenizer used by GPT-4 / GPT-3.5) and `o200k_base` (the GPT-4o family tokenizer). When absent the default `cl100k_base` applies. An out-of-set value is dropped with a warning by the config loader's AJV `enum` check and the merged value falls back to the default. The resolved encoder is persisted in `scan_meta.tokenizer` so consumers know which encoder produced the numbers. Changing this invalidates prior per-node counts on the next scan (the incremental cache path force-recomputes token counts when the persisted encoder differs from the resolved one)."
     },
     "activeProvider": {
       "type": "string",

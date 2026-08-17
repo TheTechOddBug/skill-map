@@ -19,7 +19,19 @@
  * DBeaver) opening the file see stale state. `sm scan` is a single-
  * writer one-shot, so the truncate cost is negligible (~ms on small
  * DBs) and there are no concurrent readers to contend with.
+ *
+ * Whole-result fingerprint short-circuit: a fully-warm incremental scan
+ * produces a result byte-identical to the stored snapshot, so rewriting
+ * every `scan_*` row is pure waste. The persist computes a sha256 over
+ * the canonical persisted content (`computeResultFingerprint`), compares
+ * it with `scan_meta.result_fingerprint`, and when they match AND no
+ * out-of-band inputs ride along (renames, enrichments), only the
+ * `scan_meta` row refreshes (so `scanned_at` / duration still advance).
+ * Any difference anywhere takes the full replace-all path; correctness
+ * never depends on the skip.
  */
+
+import { createHash } from 'node:crypto';
 
 import { sql, type Insertable, type Kysely, type Transaction } from 'kysely';
 
@@ -118,6 +130,7 @@ export async function persistScanResult(
   inputs: IPersistScanInputs = {},
 ): Promise<{ renames: IMigrateNodeFksReport[] }> {
   const scannedAt = validateScannedAt(result.scannedAt);
+  const resolved = resolvePersistInputs(inputs);
   const {
     renameOps,
     extractorRuns,
@@ -127,7 +140,7 @@ export async function persistScanResult(
     freshlyRunTuples,
     contributionErrors,
     linkScores,
-  } = resolvePersistInputs(inputs);
+  } = resolved;
 
   const renames: IMigrateNodeFksReport[] = [];
   await db.transaction().execute(async (trx) => {
@@ -142,7 +155,25 @@ export async function persistScanResult(
     // unless the per-scan rename heuristic already covered it.
     await appendStrandedOrphans(trx, result);
 
-    await replaceAllScanZone(trx, result, scannedAt, extractorRuns);
+    // Whole-result fingerprint (module doc): computed AFTER the orphan
+    // sweep (which mutates `result.issues`) so identical inputs always
+    // hash identically. On a match with no out-of-band inputs, refresh
+    // ONLY `scan_meta` (scanned_at / duration advance, single-row
+    // invariant holds) and keep the stale-flag sweep, which depends on
+    // stored rows, not on this scan's writes.
+    const fp = computeResultFingerprint(result, resolved);
+    const stored = await readStoredResultFingerprint(trx);
+    if (canSkipPersist(stored, fp, resolved)) {
+      await trx
+        .updateTable('scan_meta')
+        .set(metaToRow(result, fp))
+        .where('id', '=', 1)
+        .execute();
+      await flagStaleProbabilisticEnrichments(trx, result, enrichments);
+      return;
+    }
+
+    await replaceAllScanZone(trx, result, scannedAt, extractorRuns, fp);
 
     // Phase 3 / View contribution system, `scan_contributions`.
     // NOT pure replace-all (the way scan_links / scan_issues are):
@@ -232,6 +263,127 @@ function resolvePersistInputs(inputs: IPersistScanInputs): Required<IPersistScan
     linkScores: [],
     ...inputs,
   };
+}
+
+/**
+ * Deterministic JSON serialisation: object keys sorted, arrays in
+ * order, `undefined` object entries dropped (mirroring
+ * `JSON.stringify`). The fingerprint input must not depend on property
+ * insertion order, which varies with the code path that built a record.
+ */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value) ?? 'null';
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((v) => stableStringify(v)).join(',')}]`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(',')}}`;
+}
+
+/**
+ * Meta content that participates in the fingerprint: everything
+ * `metaToRow` writes EXCEPT the per-invocation volatile columns
+ * (`scannedAt`, `statsDurationMs`) and the two fingerprints themselves
+ * (`schemaFingerprint` is a build constant; `resultFingerprint` is the
+ * output). Derived from the row itself so a future meta column
+ * automatically participates unless explicitly excluded here.
+ */
+function metaContentForFingerprint(result: ScanResult): Record<string, unknown> {
+  const {
+    scannedAt: _scannedAt,
+    statsDurationMs: _durationMs,
+    schemaFingerprint: _schemaFp,
+    resultFingerprint: _resultFp,
+    ...content
+  } = metaToRow(result, null);
+  return content;
+}
+
+/**
+ * sha256 over the canonical persisted content of a scan, in fixed
+ * order: nodes, links, issues (AFTER the stranded-orphan sweep),
+ * extractor runs WITHOUT `ranAt` (stamped `Date.now()` every scan and
+ * never read back), contributions, contribution errors, link scores,
+ * the projected tag records, the meta content tuple, and the sorted
+ * registered-contribution catalog. Everything the full persist path
+ * writes is either covered here or excluded by the skip gate
+ * (`canSkipPersist`): renames and enrichments are out-of-band inputs
+ * that force the full path regardless of the fingerprint.
+ */
+function computeResultFingerprint(
+  result: ScanResult,
+  inputs: Required<IPersistScanInputs>,
+): string {
+  const runsSansRanAt = inputs.extractorRuns.map(({ ranAt: _ranAt, ...rest }) => rest);
+  // `emittedAt` is canonicalized OUT of contributions and contribution
+  // errors for the same reason `ranAt` is out of extractor runs: it is
+  // a wall-clock provenance stamp refreshed on every emission, never
+  // read back for decisions, and explicitly excluded from what the BFF
+  // hands the UI (`server/routes/contributions.ts`, `routes/plugins.ts`);
+  // its only consumer is a stable-sort tiebreak in the doctor listing.
+  // Keeping it in the input would make the fingerprint never match.
+  const contribsSansEmittedAt = inputs.contributions.map(({ emittedAt: _e, ...rest }) => rest);
+  const errorsSansEmittedAt = inputs.contributionErrors.map(({ emittedAt: _e, ...rest }) => rest);
+  const composite = [
+    result.nodes,
+    result.links,
+    result.issues,
+    runsSansRanAt,
+    contribsSansEmittedAt,
+    errorsSansEmittedAt,
+    inputs.linkScores,
+    nodesToTagRecords(result.nodes),
+    metaContentForFingerprint(result),
+    [...inputs.registeredContributionKeys].sort(),
+    // The freshly-run tuple set participates as CONTENT (not as a gate
+    // veto): the contribution sweep is a deterministic function of
+    // (buffer, catalog, tuples, stored state), so identical tuples with
+    // identical emissions reproduce the stored state exactly and the
+    // skip is safe. Analyzers re-run every scan and register their
+    // tuples unconditionally, so a "tuples must be empty" gate would
+    // never engage on the warm scans this short-circuit exists for; any
+    // CHANGE in the tuple set changes the fingerprint and takes the
+    // full path.
+    [...inputs.freshlyRunTuples].sort(),
+  ];
+  return createHash('sha256').update(stableStringify(composite), 'utf8').digest('hex');
+}
+
+async function readStoredResultFingerprint(
+  trx: Transaction<IDatabase>,
+): Promise<string | null> {
+  const row = await trx
+    .selectFrom('scan_meta')
+    .select('resultFingerprint')
+    .where('id', '=', 1)
+    .executeTakeFirst();
+  return row?.resultFingerprint ?? null;
+}
+
+/**
+ * The skip gate (module doc). A stored fingerprint match alone is not
+ * enough: renames migrate `state_*` FKs and enrichments upsert rows,
+ * both OUTSIDE the fingerprinted scan zone, so either forces the full
+ * path regardless of the match. The freshly-run tuple set is NOT gated
+ * here; it participates in the fingerprint itself (see
+ * `computeResultFingerprint`), so a tuple-set change surfaces as a
+ * fingerprint mismatch.
+ */
+function canSkipPersist(
+  stored: string | null,
+  fp: string,
+  inputs: Required<IPersistScanInputs>,
+): boolean {
+  return (
+    stored !== null &&
+    stored === fp &&
+    inputs.renameOps.length === 0 &&
+    inputs.enrichments.length === 0
+  );
 }
 
 /**
@@ -346,7 +498,12 @@ async function chunkedInsert<TB extends keyof IDatabase & string>(
 ): Promise<void> {
   if (rows.length === 0) return;
   const columns = Object.keys(rows[0] as Record<string, unknown>).length || 1;
-  const batchSize = Math.max(1, Math.floor(MAX_SQL_VARS / columns));
+  // Capped at 250 rows per statement (well under the variable limit for
+  // every current table): full chunks share identical SQL text, so the
+  // driver's statement cache reuses one prepared statement per table
+  // instead of compiling a fresh ~20k-placeholder giant every scan, and
+  // the per-call argument spreads stay small.
+  const batchSize = Math.max(1, Math.min(250, Math.floor(MAX_SQL_VARS / columns)));
   for (let start = 0; start < rows.length; start += batchSize) {
     await trx
       .insertInto(table)
@@ -360,6 +517,7 @@ async function replaceAllScanZone(
   result: ScanResult,
   scannedAt: number,
   extractorRuns: IExtractorRunRecord[],
+  resultFingerprint: string | null,
 ): Promise<void> {
   await trx.deleteFrom('scan_issues').execute();
   await trx.deleteFrom('scan_links').execute();
@@ -370,7 +528,7 @@ async function replaceAllScanZone(
   await chunkedInsert(trx, 'scan_nodes', result.nodes.map((n) => nodeToRow(n, scannedAt)));
   await chunkedInsert(trx, 'scan_links', result.links.map(linkToRow));
   await chunkedInsert(trx, 'scan_issues', result.issues.map(issueToRow));
-  await trx.insertInto('scan_meta').values(metaToRow(result)).execute();
+  await trx.insertInto('scan_meta').values(metaToRow(result, resultFingerprint)).execute();
   await chunkedInsert(trx, 'scan_extractor_runs', extractorRuns.map(extractorRunToRow));
 }
 
@@ -681,7 +839,10 @@ function projectLinkLocation(
   };
 }
 
-function metaToRow(result: ScanResult): Insertable<IScanMetaTable> {
+function metaToRow(
+  result: ScanResult,
+  resultFingerprint: string | null,
+): Insertable<IScanMetaTable> {
   return {
     id: 1,
     rootsJson: JSON.stringify(result.roots),
@@ -694,6 +855,9 @@ function metaToRow(result: ScanResult): Insertable<IScanMetaTable> {
     // write-side open compares (see spec/db-schema.md §Schema drift
     // (pre-1.0)). Internal DB metadata, never on the ScanResult wire.
     schemaFingerprint: schemaFingerprint(),
+    // Whole-result fingerprint (module doc). NULL on synthetic writes
+    // that bypass `persistScanResult`'s fingerprint path.
+    resultFingerprint,
     providersJson: JSON.stringify(result.providers),
     statsFilesWalked: result.stats.filesWalked,
     statsFilesSkipped: result.stats.filesSkipped,

@@ -13,7 +13,6 @@ import { relativeIfBelow } from '../../util/path-display.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { DB_TEXTS } from '../../i18n/db.texts.js';
 
-import { createSqliteStorage } from '../../../kernel/adapters/sqlite/index.js';
 import type {
   IApplyResult,
   IMigrationFile,
@@ -50,6 +49,11 @@ export class DbMigrateCommand extends SmCommand {
   noBackup = Option.Boolean('--no-backup', false);
 
   protected async run(): Promise<number> {
+    // Deferred value import (2026-08 perf sprint): same seam as
+    // `core/sqlite/with-sqlite.ts`, the only other value entry into the
+    // kysely-heavy sqlite adapter subgraph. Loaded only when the verb
+    // actually runs.
+    const { createSqliteStorage } = await import('../../../kernel/adapters/sqlite/index.js');
     const path = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
 
     if (path !== ':memory:') await mkdir(dirname(path), { recursive: true });

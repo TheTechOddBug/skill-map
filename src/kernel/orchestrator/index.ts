@@ -53,18 +53,6 @@
 import { existsSync, statSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 
-// js-tiktoken ships CJS subpaths without explicit `.cjs` in the import
-// specifier, the lint rule's hard-coded extension matrix doesn't model
-// dual-package CJS subpath exports.
-// eslint-disable-next-line import-x/extensions
-import { Tiktoken } from 'js-tiktoken/lite';
-// Rank tables are loaded lazily and per-encoder in `buildScanSetup` via
-// explicit literal dynamic imports (see `loadTokenizerRanks`), so only
-// the chosen encoder's BPE table is pulled into the bundle / runtime.
-// A static `import cl100k_base from 'js-tiktoken/ranks/cl100k_base'`
-// would force-load that table on every scan, even when tokenization is
-// off or the operator selected `o200k_base`.
-
 import pkg from '../../package.json' with { type: 'json' };
 
 import { InMemoryProgressEmitter } from '../adapters/in-memory-progress.js';
@@ -139,6 +127,12 @@ import { makeLinkTargetProbe } from './link-target-probe.js';
 import { resolveSignals } from './resolver.js';
 import { normalizeTrigger } from '../trigger-normalize.js';
 import {
+  getTokenCounterHandle,
+  resolveTokenizerName,
+  type ITokenCounterHandle,
+  type TTokenizerName,
+} from './token-counter.js';
+import {
   detectRenamesAndOrphans,
   type RenameOp,
 } from './renames.js';
@@ -163,65 +157,6 @@ function resolveSpecVersionSafe(): string {
   } catch {
     return 'unknown';
   }
-}
-
-/**
- * Default offline tokenizer. Mirrors `defaults.json#/tokenizer` and the
- * `project-config.schema.json` enum default. The single source of the
- * "fall back to this" decision in the orchestrator.
- */
-const DEFAULT_TOKENIZER = 'cl100k_base';
-
-/**
- * Closed allow-list of supported encoders, byte-aligned with
- * `project-config.schema.json#/properties/tokenizer/enum`.
- */
-type TTokenizerName = 'cl100k_base' | 'o200k_base';
-
-/**
- * Belt-and-suspenders guard over the override layer. The config schema's
- * AJV `enum` already rejects out-of-set values for the config layers
- * (dropped-with-warning, falls back to the default), but the `override`
- * layer and out-of-band callers reach `runScan` without that gate, so
- * any unrecognised name resolves to the default here.
- */
-function resolveTokenizerName(name: string | undefined): TTokenizerName {
-  return name === 'o200k_base' ? 'o200k_base' : DEFAULT_TOKENIZER;
-}
-
-/**
- * Load only the chosen encoder's BPE rank table. The two specifiers are
- * explicit string literals (NOT a template-literal `js-tiktoken/ranks/${name}`)
- * so tsup can statically see both subpaths and bundle them; the ternary
- * means exactly one table is loaded at runtime.
- */
-async function loadTokenizerRanks(name: TTokenizerName): Promise<ConstructorParameters<typeof Tiktoken>[0]> {
-  if (name === 'o200k_base') {
-    // eslint-disable-next-line import-x/extensions
-    return (await import('js-tiktoken/ranks/o200k_base')).default;
-  }
-  // eslint-disable-next-line import-x/extensions
-  return (await import('js-tiktoken/ranks/cl100k_base')).default;
-}
-
-/**
- * Process-wide encoder cache. Constructing a `Tiktoken` walks the whole
- * BPE rank table (~200ms measured); the instance is immutable after
- * construction, so one per encoder name serves every scan in the
- * process. This matters most for the watcher (which used to pay the
- * construction on every debounced rescan) and for warm incremental
- * scans whose cache reuse leaves the encoder mostly idle. Never
- * invalidated on purpose: the table is static data shipped with
- * `js-tiktoken`.
- */
-const encoderCache = new Map<TTokenizerName, Tiktoken>();
-
-async function getEncoder(name: TTokenizerName): Promise<Tiktoken> {
-  const cached = encoderCache.get(name);
-  if (cached) return cached;
-  const encoder = new Tiktoken(await loadTokenizerRanks(name));
-  encoderCache.set(name, encoder);
-  return encoder;
 }
 
 export interface IScanExtensions {
@@ -970,7 +905,7 @@ interface IScanSetup {
   emitter: ProgressEmitterPort;
   exts: NonNullable<RunScanOptions['extensions']>;
   hookDispatcher: IHookDispatcher;
-  encoder: Tiktoken | null;
+  encoder: ITokenCounterHandle | null;
   /**
    * Resolved encoder name that built `encoder` (default `cl100k_base`).
    * Carried onto `ScanResult.tokenizer` and persisted into `scan_meta`
@@ -1005,13 +940,14 @@ async function buildScanSetup(options: RunScanOptions): Promise<IScanSetup> {
   const exts = options.extensions ?? { providers: [], extractors: [], analyzers: [] };
   const hookDispatcher = makeHookDispatcher(exts.hooks ?? [], emitter);
   const tokenize = options.tokenize !== false;
-  // Resolve the encoder name (guarding the override layer) and lazily
-  // load only that rank table. The encoder is heavyweight to construct
-  // (loads the BPE table once); reuse a single instance across the whole
-  // scan. `tokenizer` is resolved even when tokenization is off so the
-  // persisted `scan_meta.tokenizer` still records the configured intent.
+  // Resolve the encoder name (guarding the override layer) and hand out
+  // a LAZY counter handle: nothing is loaded here. The walk resolves the
+  // handle only when a cache-missing node actually needs counting, so a
+  // fully-warm scan never constructs a counter at all. `tokenizer` is
+  // resolved even when tokenization is off so the persisted
+  // `scan_meta.tokenizer` still records the configured intent.
   const tokenizer = resolveTokenizerName(options.tokenizer);
-  const encoder = tokenize ? await getEncoder(tokenizer) : null;
+  const encoder = tokenize ? getTokenCounterHandle(tokenizer) : null;
   const prior = options.priorSnapshot ?? null;
   const priorIndex = indexPriorSnapshot(prior);
   // Spec 0.8.0: each Provider owns its per-kind frontmatter schemas.
@@ -1289,7 +1225,7 @@ function resolveActiveProviderOption(
  * identical, the string only names the cause for the reader.
  */
 function resolveCacheInvalidation(input: {
-  encoder: Tiktoken | null;
+  encoder: ITokenCounterHandle | null;
   prior: ScanResult | null;
   tokenizer: string | undefined;
   activeProvider: string | null;
