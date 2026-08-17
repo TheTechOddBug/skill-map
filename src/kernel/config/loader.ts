@@ -415,6 +415,10 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'scan.referencePaths',
   'scan.followExternalSymlinks',
   'activity.captureConversations',
+  // The capture-level ladder position is an operational knob the
+  // operator moves at record time (spec provider-activity.md, Capture
+  // level); committed, one person's depth choice would follow the repo.
+  'activity.captureLevel',
   'ui.liveUpdates',
   'ui.realtimeActivity',
   'ui.showRuntimeAgents',

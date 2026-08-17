@@ -37,6 +37,7 @@ import {
   isUsageCliTelemetryEnabled,
   isUsageUiTelemetryEnabled,
   readAnonymousId,
+  readDismissedNotes,
   writeUserSettings,
 } from '../../cli/util/user-settings-store.js';
 import { resolveTelemetryEnv, type TTelemetryEnv } from '../../cli/telemetry/telemetry-env.js';
@@ -52,6 +53,9 @@ export interface IPreferencesEnvelope {
   };
   githubStars: {
     enabled: boolean;
+  };
+  ui: {
+    dismissedNotes: string[];
   };
   telemetry: {
     errorsEnabled: boolean;
@@ -70,6 +74,9 @@ export interface IPreferencesEnvelope {
 }
 
 interface IPatchBody {
+  ui?: {
+    dismissedNotes?: string[];
+  };
   updateCheck?: {
     enabled?: boolean;
   };
@@ -105,6 +112,7 @@ function buildEnvelope(): IPreferencesEnvelope {
   return {
     updateCheck: { enabled: isUpdateCheckEnabled() },
     githubStars: { enabled: isGithubStarsEnabled() },
+    ui: { dismissedNotes: readDismissedNotes() },
     telemetry: {
       errorsEnabled: isErrorTelemetryEnabled(),
       usageCliEnabled: isUsageCliTelemetryEnabled(),
@@ -128,6 +136,7 @@ function applyPatch(body: IPatchBody): void {
     if (body.githubStars && typeof body.githubStars.enabled === 'boolean') {
       writeUserSettings({ githubStars: { enabled: body.githubStars.enabled } });
     }
+    applyUiPatch(body);
     if (body.telemetry) {
       applyTelemetryPatch(body.telemetry);
     }
@@ -161,6 +170,16 @@ function applyTelemetryPatch(t: NonNullable<IPatchBody['telemetry']>): void {
 }
 
 /**
+ * Whole-list replace of the dismissed-notes set (spec cli-contract.md,
+ * PATCH /api/preferences): the client sends the updated list, deduped
+ * here for hygiene.
+ */
+function applyUiPatch(body: IPatchBody): void {
+  if (body.ui?.dismissedNotes === undefined) return;
+  writeUserSettings({ ui: { dismissedNotes: [...new Set(body.ui.dismissedNotes)] } });
+}
+
+/**
  * Body schema for `PATCH /api/preferences`. `minProperties: 1` rejects
  * `{}` (no-op patches mask client bugs, typoed key, wrong nesting);
  * `additionalProperties: false` at every level catches the same on
@@ -184,6 +203,17 @@ const PATCH_BODY_SCHEMA = {
       additionalProperties: false,
       properties: {
         enabled: { type: 'boolean' },
+      },
+    },
+    ui: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        dismissedNotes: {
+          type: 'array',
+          items: { type: 'string', minLength: 1 },
+          maxItems: 64,
+        },
       },
     },
     telemetry: {

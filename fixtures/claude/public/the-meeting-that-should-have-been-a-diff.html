@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>The meeting that should have been a diff</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>The meeting that should have been a diff</h1>
+
+  <p>Two people leave a design meeting agreeing on something, and a week later they disagree about what they agreed on. Nobody lied. There was just never an artifact, only a shared feeling in a room that dissolved the moment the room emptied. A diff does not dissolve. It sits in the repo and says exactly what changed and why.</p>
+
+  <h2>A meeting produces a memory, not a record</h2>
+  <p>Everyone in the room reconstructs the decision slightly differently afterward, because everyone was listening for something slightly different. The engineer heard "we'll try it behind a flag." The manager heard "we're doing it." Both are honest memories of the same forty-five minutes. Neither is checkable, because there is nothing to check against.</p>
+
+  <h2>A diff forces the vague parts to become concrete</h2>
+  <p>You cannot propose "let's make errors better" as a diff. You have to pick a function, change its signature, and show the new error message. The act of writing the change exposes every hand-wave that a spoken sentence let slide. Half of what looked like a disagreement in the meeting turns out to be agreement once someone has to write the actual line of code.</p>
+
+  <h2>Review happens on your own time, not synchronously</h2>
+  <p>A meeting demands that everyone form an opinion in real time, out loud, in front of each other. A diff lets each reviewer read it alone, think about it, and comment without the social cost of interrupting. Quieter opinions survive the process instead of losing to whoever spoke first and loudest.</p>
+
+  <h2>Disagreement gets cheaper to resolve</h2>
+  <p>When the proposal is a diff, "I don't like this" has to attach to a specific line, and "here's what I'd do instead" can be a suggested change instead of a competing monologue. Comparing two written approaches side by side is fast. Comparing two people's verbal descriptions of approaches that only exist in their heads is slow, and usually ends in a second meeting.</p>
+
+  <h2>The record outlives the disagreement</h2>
+  <p>Six months later nobody remembers the meeting, but the commit message and the PR discussion are still there, explaining why the retry logic works the way it does. The next person to touch that code does not have to guess or schedule a meeting of their own. They read the diff that already had the argument for them.</p>
+
+  <h2>The tell</h2>
+  <p>You know a discussion should have been a diff when it ends with "okay, so are we doing this?" and nobody is quite sure who answers. Write the change instead. Let the diff answer.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

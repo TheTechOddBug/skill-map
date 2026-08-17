@@ -47,11 +47,21 @@ import { NodeActivityService } from '../../../services/node-activity';
 import { NodeSparkService } from '../../../services/node-spark';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import { ActivityReadinessService } from '../../services/activity-readiness';
+import { CaptureLevelSelector } from '../capture-level-selector/capture-level-selector';
+import { CaptureLevelService } from '../../../services/capture-level';
+import { CAPTURE_LEVEL_TEXTS } from '../../../i18n/capture-level.texts';
 import { ToggleRowDirective } from './toggle-row.directive';
 
 @Component({
   selector: 'sm-settings-project-realtime',
-  imports: [ButtonModule, ConfirmDialogModule, FormsModule, ToggleRowDirective, ToggleSwitchModule],
+  imports: [
+    ButtonModule,
+    CaptureLevelSelector,
+    ConfirmDialogModule,
+    FormsModule,
+    ToggleRowDirective,
+    ToggleSwitchModule,
+  ],
   providers: [ConfirmationService],
   templateUrl: './settings-project-realtime.html',
   styleUrl: './settings-project-rows.css',
@@ -86,9 +96,16 @@ export class SettingsProjectRealtime {
       if (this.visible()) {
         void this.activityReadiness.refresh();
         this.refreshJournalCount();
+        // The Settings mirror can open without the Sessions tab ever
+        // having hydrated the ladder: fetch the live level on open.
+        void this.captureLevelSvc.refresh();
       }
     });
   }
+
+  /** Capture-ladder mirror (spec provider-activity.md, Capture level). */
+  protected readonly captureLevelSvc = inject(CaptureLevelService);
+  protected readonly captureLevelTexts = CAPTURE_LEVEL_TEXTS;
 
   protected onLiveActivityToggle(next: boolean): void {
     this.usageTracker.trackFeature('realtime-activity', next, 'settings');

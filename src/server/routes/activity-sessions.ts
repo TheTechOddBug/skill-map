@@ -34,6 +34,12 @@ import type { IRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { readSessionJournalDetailed } from '../../kernel/session-journal/index.js';
 import type { ActivityJournalService } from '../activity-journal.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
+import { writeConfigValue } from '../../core/config/helper.js';
+import {
+  CAPTURE_LEVELS,
+  type CaptureLevelState,
+  type TCaptureLevel,
+} from '../capture-level.js';
 import { makeBodyValidator } from '../util/parse-body.js';
 
 interface IRecordingBody {
@@ -49,6 +55,25 @@ const RECORDING_BODY_SCHEMA = {
   },
 } as const;
 
+const CAPTURE_LEVEL_BODY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['level'],
+  properties: {
+    level: { type: 'string', enum: [...CAPTURE_LEVELS] },
+  },
+} as const;
+
+interface ICaptureLevelBody {
+  level: TCaptureLevel;
+}
+
+const parseCaptureLevelBody = makeBodyValidator<ICaptureLevelBody>(CAPTURE_LEVEL_BODY_SCHEMA, {
+  notJson: SERVER_TEXTS.activityBodyNotJson,
+  notObject: SERVER_TEXTS.activityBodyNotObject,
+  invalid: SERVER_TEXTS.activityBodyNotObject,
+});
+
 const parseRecordingBody = makeBodyValidator<IRecordingBody>(RECORDING_BODY_SCHEMA, {
   notJson: SERVER_TEXTS.activityBodyNotJson,
   notObject: SERVER_TEXTS.activityBodyNotObject,
@@ -61,6 +86,8 @@ export interface IActivitySessionsRouteDeps {
    * activity custody contract, never on `IRouteDeps`).
    */
   journal: ActivityJournalService;
+  /** Live capture-level cell (spec provider-activity.md, Capture level). */
+  captureLevel: CaptureLevelState;
   /** Absolute `.skill-map/sessions` directory the GET reads. */
   sessionsDir: string;
   /** Boot runtime context; `cwd` anchors the operations-log line. */
@@ -83,6 +110,9 @@ export function registerActivitySessionsRoute(
       // Record/Stop control (spec §Session journal · Capture is a
       // gesture).
       recording: deps.journal.isRecording(),
+      // The live ladder position, so the level selector hydrates
+      // (spec §Capture level).
+      captureLevel: deps.captureLevel.current(),
     });
   });
 
@@ -95,6 +125,32 @@ export function registerActivitySessionsRoute(
     const body = await parseRecordingBody(c.req.raw);
     const recording = deps.journal.setRecording(body.recording);
     return c.json({ recording });
+  });
+
+  // Capture-level move (spec §Capture level): updates the live ingest
+  // filter immediately (stats, journal, broadcast all follow) AND
+  // persists the project-local `activity.captureLevel` key so the next
+  // boot resumes it. The persist is best-effort: a read-only scope
+  // still moves the live level for this boot.
+  app.post('/api/activity/capture-level', async (c) => {
+    const body = await parseCaptureLevelBody(c.req.raw);
+    // LOCKED while recording (spec §Capture level): a mid-recording
+    // move is ambiguous to everyone watching, so the route answers the
+    // unchanged effective level, mirroring the master-switch refusal
+    // dialect of the recording toggle above.
+    if (deps.journal.isRecording()) {
+      return c.json({ captureLevel: deps.captureLevel.current() });
+    }
+    deps.captureLevel.set(body.level);
+    try {
+      writeConfigValue('activity.captureLevel', body.level, {
+        cwd: deps.runtimeContext.cwd,
+        target: 'project-local',
+      });
+    } catch {
+      // Best-effort persistence; the live cell already moved.
+    }
+    return c.json({ captureLevel: deps.captureLevel.current() });
   });
 
   app.delete('/api/activity/sessions', (c) => {

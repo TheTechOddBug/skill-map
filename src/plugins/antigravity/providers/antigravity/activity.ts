@@ -131,6 +131,8 @@ function mapFileView(
   const relative = relativizeMarkdownPath(args['AbsolutePath'], event['workspacePaths']);
   if (relative === null) return null;
   // `detail` = literal invoking tool name (spec/provider-activity.md §detail).
+  // Reads only: Antigravity's matcher captures no write tool today, so
+  // the capture-level `writes` rung has nothing to stamp here.
   return [{ path: relative, phase: 'start', owner: ownerOf(event), detail: 'view_file' }];
 }
 

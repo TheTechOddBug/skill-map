@@ -413,6 +413,8 @@ describe('claudeActivity.mapEvent', () => {
         phase: 'start',
         owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
         detail: 'Write',
+        // Capture-level rung-3 stamp (2026-08-17).
+        access: 'write',
       },
     ]);
   });
@@ -431,7 +433,7 @@ describe('claudeActivity.mapEvent', () => {
       },
     });
     assert.deepEqual(signals, [
-      { path: 'docs/playbook.md', phase: 'start', owner: 'afa6d56495644b2db', detail: 'Edit' },
+      { path: 'docs/playbook.md', phase: 'start', owner: 'afa6d56495644b2db', detail: 'Edit', access: 'write' },
     ]);
   });
 

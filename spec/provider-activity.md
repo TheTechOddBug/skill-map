@@ -477,12 +477,18 @@ Broadcast over `/ws` in the common envelope of
   alone; unit detail renders as a transient badge on the executing card that
   decays with the glow.
 - `access` (optional): classifies a RESOURCE frame, `"mcp"` when the node is an
-  `mcp://` server (a tool call) or `"read"` when it is a file a unit read.
-  Absent on a UNIT's own execution (a skill / agent / command start). The
-  resolver derives it from the signal SHAPE, a PATH signal is a resource access,
-  a NAME signal (`kind` + `name`) is a unit execution, so a unit reading another
-  unit's file still classifies as a `read`, not an execution of it. It drives
-  caller attribution and the typed recent log (below).
+  `mcp://` server (a tool call), `"read"` when it is a file a unit read, or
+  `"write"` when the unit wrote / edited it (2026-08-17, the capture-level
+  ladder's third rung). Absent on a UNIT's own execution (a skill / agent /
+  command start). The resolver derives the resource-vs-unit split from the
+  signal SHAPE, a PATH signal is a resource access, a NAME signal (`kind` +
+  `name`) is a unit execution, so a unit reading another unit's file still
+  classifies as a `read`, not an execution of it; the read-vs-write split
+  comes from the ADAPTER, which may stamp `access: "write"` on a path
+  signal for its vendor's write-shaped tools (Claude `Write` / `Edit`,
+  Antigravity `write_to_file`, ...), the resolver defaulting anything
+  unstamped and non-`mcp://` to `"read"`. It drives caller attribution and
+  the typed recent log (below).
 - `ownerScope` (optional, only on `phase: "end"`): `true` when the signal marks
   the END OF THE OWNER'S WHOLE EXECUTION CONTEXT (a subagent terminating), not
   just of the named node. Consumers then release EVERY claim held by that
@@ -782,7 +788,7 @@ fields as overwrites from the single server-side source of truth.
 ### `GET /api/activity/node/<pathB64>`
 
 Per-node detail for inspector surfaces. Response `200`: `{ "stats": { ... },
-"recent": [{ "at": <ms>, "owner": "...", "detail"?: "<tool>", "caller"?: "<unit path>", "target"?: "<accessed path>", "kind"?: "mcp" | "read" }], "spawns": [ ... ],
+"recent": [{ "at": <ms>, "owner": "...", "detail"?: "<tool>", "caller"?: "<unit path>", "target"?: "<accessed path>", "kind"?: "mcp" | "read" | "write" }], "spawns": [ ... ],
 "captureEnabled": <bool>, "runs": [ ... ] }`, where `spawns` lists the RETAINED spawn records
 touching the node (as parent or child). Records exist only while the capture
 gate is on (§Conversation capture): with the gate off the list is always
@@ -1070,6 +1076,51 @@ WHICH nodes executed and who spawned whom, no latency, no tokens, no content.
   issue-suppression sidecar affordance (the link analyzers stamp
   `data.target` with the resolved target, the node analyzer with the node's
   own path); there is deliberately NO auto-fixer for any direction.
+
+## Capture level
+
+The operator decides how much runtime activity skill-map sees, through ONE
+cumulative ladder applied LIVE at ingest (2026-08-17; the earlier
+install-time depth idea died once the bridge cost was measured at ~20 ms
+per event, cheap enough that the hooks always install their full surface):
+
+1. `executions`: unit runs (skills / agents / commands), spawns, custody
+   and lifecycle claims, turn and session bounds. The mandatory floor:
+   every other class correlates to the unit the executions establish.
+2. `reads` (+ level 1): `access: "read"` frames.
+3. `writes` (+ levels below): `access: "write"` frames.
+4. `mcp` (+ levels below): `access: "mcp"` frames. THE DEFAULT, matching
+   the full capture surface the hooks have always fed.
+5. `shell` (+ levels below): RESERVED. Paths parsed out of shell commands;
+   no capture exists yet, and when it lands it additionally requires an
+   install-side opt-in (privacy: command lines are operator content).
+
+The active level is a SERVER-side filter at the ingest seam, applied to
+resolved frames BEFORE stats, run history, conversation capture, the
+session journal and the WS broadcast: below the level, the event did not
+happen for skill-map, so the live map (Real Time) and every recording see
+the same truth. Classification of a resolved frame: `agent.spawn` and any
+`node.activity` without `access` (custody, lifecycle, turn / session
+bounds included) rank as `executions`; otherwise the frame ranks as its
+`access` class.
+
+Persistence and control: the level lives in the `activity.captureLevel`
+project-LOCAL config key (default `mcp`), read at serve boot;
+`POST /api/activity/capture-level` (`{"level": "<name>"}`, loopback, no
+token) updates the live filter AND persists the key, answering the
+effective level. The level is LOCKED while journal capture is on (user
+decision 2026-08-17: a mid-recording move reads as "did it change or
+not?"): the POST refuses and answers the unchanged effective level, the
+UI selectors disable, and the depth is chosen BEFORE pressing Record,
+which also keeps each recording's `captureLevel` stamp single-valued in
+practice (the MINIMUM rule below stays as defense); the `GET /api/activity/sessions` envelope reports it as
+`captureLevel` so the UI selector (beside the Record control, mirrored in
+Settings) hydrates. Each journal recording STAMPS the level it was
+captured under (`captureLevel` on the recording envelope): evidence
+recorded at a lower level lacks the filtered classes, and the observed-*
+volume gates will read the stamp when their per-class refinement lands
+(deferred with the trio's graduation; until then the stamp is honest
+provenance).
 
 ## Transport shapes
 

@@ -79,6 +79,11 @@ import {
   JOURNAL_MAX_FILES,
   JOURNAL_MAX_TOTAL_BYTES,
 } from './activity-journal.js';
+import {
+  CaptureLevelState,
+  DEFAULT_CAPTURE_LEVEL,
+  isCaptureLevel,
+} from './capture-level.js';
 import { ActivityOwnerIndex } from './activity-owner-index.js';
 import { ActivityProbeStore } from './activity-probe.js';
 import { ActivityStatsService } from './activity-stats.js';
@@ -227,7 +232,8 @@ export async function createServer(
   // gate above; default ON (content-free, so a normal team preference, not
   // consent-shaped). Same custody posture as the stores above: threaded to
   // the ingest route as an explicit extra dep, never on `IRouteDeps`.
-  const activityJournal = buildActivityJournal(runtimeContext);
+  const captureLevel = buildCaptureLevel(runtimeContext);
+  const activityJournal = buildActivityJournal(runtimeContext, captureLevel);
   const { pluginRuntime, kindRegistry, providerRegistry, providers } =
     await assemblePluginRuntime(options, runtimeContext);
   // Skill-action catalog (`spec/skill-actions.md` §Discovery), assembled
@@ -270,6 +276,7 @@ export async function createServer(
     activityProbes,
     activityConversations,
     activityJournal,
+    captureLevel,
     agentPresence,
     broadcaster,
     runtimeContext,
@@ -420,7 +427,23 @@ function buildMcpIntegration(
  * the gate read stays a one-line thread without inflating the
  * composition root's cyclomatic budget.
  */
-function buildActivityJournal(runtimeContext: IRuntimeContext): ActivityJournalService {
+/**
+ * Seed the live capture-level cell from the project-local config key
+ * (spec provider-activity.md, Capture level). Off-shape values fall
+ * back to the default (the historical full surface).
+ */
+function buildCaptureLevel(runtimeContext: IRuntimeContext): CaptureLevelState {
+  const raw = readConfigValue<string>('activity.captureLevel', {
+    cwd: runtimeContext.cwd,
+    default: DEFAULT_CAPTURE_LEVEL,
+  });
+  return new CaptureLevelState(isCaptureLevel(raw) ? raw : DEFAULT_CAPTURE_LEVEL);
+}
+
+function buildActivityJournal(
+  runtimeContext: IRuntimeContext,
+  captureLevel: CaptureLevelState,
+): ActivityJournalService {
   const cwd = runtimeContext.cwd;
   return new ActivityJournalService({
     enabled:
@@ -442,6 +465,9 @@ function buildActivityJournal(runtimeContext: IRuntimeContext): ActivityJournalS
       }),
       JOURNAL_MAX_TOTAL_BYTES,
     ),
+    // Provenance stamp (spec: Capture level): each recording carries the
+    // MINIMUM level active while it captured.
+    captureLevel: () => captureLevel.current(),
   });
 }
 

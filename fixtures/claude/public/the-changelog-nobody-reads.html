@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>The changelog nobody reads</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>The changelog nobody reads</h1>
+
+  <p>Most changelogs are written for the person who wrote the change, not for the person who has to read it later. That is why they bloat, and why nobody reads them.</p>
+
+  <h2>Why entries grow</h2>
+  <p>The author just finished the work and remembers every step: the false start, the file that surprised them, the edge case they chased for an hour. All of that is fresh, so it goes into the entry. The result reads like a diary, not a release note.</p>
+
+  <h2>What a reader actually scans for</h2>
+  <p>Someone scanning a changelog wants two things: what changed, and where they will notice it. They are deciding whether to upgrade, or trying to explain a new behavior they just saw. They are not trying to relive how the change was made.</p>
+
+  <h2>The one-paragraph rule</h2>
+  <p>Write one paragraph per release: name what changed and where a reader notices it. Nothing else. The deep why and how belongs in the pull request, where it stays linked to the diff and searchable. A changelog is a summary, not an archive.</p>
+
+  <h2>When a long entry is justified</h2>
+  <p>Breaking changes are the exception. If an upgrade requires the reader to change their own code, spell out exactly what breaks and what to do about it. That is information they cannot get anywhere else in time to act on it.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

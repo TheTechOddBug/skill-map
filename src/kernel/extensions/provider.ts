@@ -587,6 +587,16 @@ export interface IActivitySignal {
    * is a direct `node.path` match and `kind` / `name` are ignored.
    */
   path?: string;
+  /**
+   * Adapter-declared access class for a PATH signal (spec
+   * `provider-activity.md` field list, 2026-08-17): `'write'` when the
+   * vendor tool wrote / edited the file (Claude `Write` / `Edit`,
+   * Antigravity `write_to_file`, ...). Omit for reads; the resolver
+   * defaults any unstamped non-`mcp://` path signal to `"read"` and
+   * derives `"mcp"` from the path prefix regardless. Ignored on NAME
+   * signals (a unit's own execution carries no access class).
+   */
+  access?: 'read' | 'write';
   /** Signal phase, see `TActivityPhase`. */
   phase: TActivityPhase;
   /**

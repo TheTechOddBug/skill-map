@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Why CLI tools outlive frameworks</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Why CLI tools outlive frameworks</h1>
+
+  <p>Frameworks come and go every few years. Command-line tools built decades ago still run today. That is not luck.</p>
+
+  <h2>Text in, text out</h2>
+  <p>A CLI's contract is stdin, stdout, and an exit code. That contract composes with anything: a shell script, a cron job, another CLI, a CI pipeline written years later. Nothing about it depends on how the tool is built inside.</p>
+
+  <h2>A verb, not an app</h2>
+  <p>A framework owns your whole app structure: routing, state, lifecycle, build step. A CLI owns one verb. Owning less means there is less to break when the world around it changes.</p>
+
+  <h2>Flags are a small surface</h2>
+  <p>Keeping a set of flags backward compatible is far easier than keeping a class hierarchy, a set of lifecycle hooks, and a rendering model compatible. Small surface, fewer ways to force a breaking change.</p>
+
+  <h2>The shell never gets deprecated</h2>
+  <p>Every other integration layer gets replaced. The shell does not. A tool that speaks shell keeps working long after the framework it was originally paired with is gone.</p>
+
+  <h2>Replacements keep the flags</h2>
+  <p>When a CLI does die, its replacement almost always keeps the same flags. Users do not relearn <code>-v</code> or <code>--force</code>. The interface outlives the implementation, sometimes more than once.</p>
+
+  <h2>When a framework is the right call</h2>
+  <p>None of this means frameworks are wrong. Shared UI state, a large team that needs shared conventions, and long-lived interactive apps benefit from a framework's structure. Pick the framework when the problem is coordination, not composition.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

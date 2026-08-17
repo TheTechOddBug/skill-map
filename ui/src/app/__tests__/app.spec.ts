@@ -184,12 +184,14 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     Promise.resolve({
       updateCheck: { enabled: true },
       githubStars: { enabled: true },
+      ui: { dismissedNotes: [] },
       telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null, environment: 'prod' },
     }),
   setPreferences: () =>
     Promise.resolve({
       updateCheck: { enabled: true },
       githubStars: { enabled: true },
+      ui: { dismissedNotes: [] },
       telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null, environment: 'prod' },
     }),
   getProjectPreferences: () =>
@@ -311,7 +313,8 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     }),
   clearNodeActivity: () => Promise.resolve(),
   clearSessionJournal: () => Promise.resolve(),
-  getSessionJournal: () => Promise.resolve({ sessions: [], recording: false }),
+  getSessionJournal: () => Promise.resolve({ sessions: [], recording: false, captureLevel: 'mcp' }),
+  setCaptureLevel: () => Promise.resolve('mcp'),
   setSessionRecording: (recording: boolean) => Promise.resolve(recording),
   getSpawnRecord: () => Promise.resolve(null),
   getActivityCapture: () => Promise.resolve({ enabled: false }),

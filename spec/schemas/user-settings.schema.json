@@ -46,6 +46,18 @@
         }
       }
     },
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-machine UI bookkeeping. `dismissedNotes` holds the ids of one-time informational notes the operator closed (e.g. the Sessions tab's recording intro), so a note dismissed once stays dismissed on every project this machine opens.",
+      "properties": {
+        "dismissedNotes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "maxItems": 64
+        }
+      }
+    },
     "telemetry": {
       "type": "object",
       "additionalProperties": false,

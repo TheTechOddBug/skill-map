@@ -147,6 +147,7 @@ describe('GET /api/preferences', () => {
       assert.deepEqual(env, {
         updateCheck: { enabled: true },
         githubStars: { enabled: true },
+        ui: { dismissedNotes: [] },
         telemetry: { ...TELEMETRY_DEFAULT },
       });
     });
@@ -154,6 +155,26 @@ describe('GET /api/preferences', () => {
 });
 
 describe('PATCH /api/preferences', () => {
+  it('persists dismissed UI notes machine-wide (whole-list replace, deduped)', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ui: { dismissedNotes: ['sessions-recording-intro', 'sessions-recording-intro'] },
+        }),
+      });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as { ui: { dismissedNotes: string[] } };
+      assert.deepEqual(env.ui.dismissedNotes, ['sessions-recording-intro']);
+
+      const persisted = JSON.parse(
+        readFileSync(join(homedir, '.skill-map/settings.json'), 'utf8'),
+      ) as { ui?: { dismissedNotes?: string[] } };
+      assert.deepEqual(persisted.ui?.dismissedNotes, ['sessions-recording-intro']);
+    });
+  });
+
   it('persists updateCheck.enabled=false to ~/.skill-map/settings.json', async () => {
     await boot(async (handle) => {
       const res = await fetch(url(handle, '/api/preferences'), {
@@ -166,6 +187,7 @@ describe('PATCH /api/preferences', () => {
       assert.deepEqual(env, {
         updateCheck: { enabled: false },
         githubStars: { enabled: true },
+        ui: { dismissedNotes: [] },
         telemetry: { ...TELEMETRY_DEFAULT },
       });
 
@@ -189,6 +211,7 @@ describe('PATCH /api/preferences', () => {
       assert.deepEqual(reEnv, {
         updateCheck: { enabled: false },
         githubStars: { enabled: true },
+        ui: { dismissedNotes: [] },
         telemetry: { ...TELEMETRY_DEFAULT },
       });
     });

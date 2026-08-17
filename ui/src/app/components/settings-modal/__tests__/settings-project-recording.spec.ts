@@ -41,7 +41,7 @@ describe('SettingsProjectRealtime recording row', () => {
   ): Promise<import('@angular/core/testing').ComponentFixture<Host>> {
     getSessionJournal = vi
       .fn()
-      .mockResolvedValue({ sessions: Array(journalSessions).fill({}), recording: false });
+      .mockResolvedValue({ sessions: Array(journalSessions).fill({}), recording: false, captureLevel: 'mcp' });
     TestBed.configureTestingModule({
       providers: [
         {
@@ -49,6 +49,7 @@ describe('SettingsProjectRealtime recording row', () => {
           useValue: {
             size: tapeSize.asReadonly(),
             storedChars: storedChars.asReadonly(),
+            recording: signal(false).asReadonly(),
           } as unknown as ActivityRecorderService,
         },
         { provide: SessionPurgeService, useValue: { purge } },

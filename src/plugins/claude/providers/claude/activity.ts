@@ -365,8 +365,17 @@ function mapMarkdownUsage(
 ): IActivitySignal[] | null {
   const relative = relativizeMarkdownPath(input['file_path'], [event['cwd']]);
   if (relative === null) return null;
-  // `detail` = literal invoking tool name (spec/provider-activity.md §detail).
-  return [{ path: relative, phase: 'start', owner: sessionizedOwner(event), detail: toolName }];
+  // `detail` = literal invoking tool name (spec/provider-activity.md §detail);
+  // Write / Edit stamp the write access class (capture-level rung 3).
+  return [
+    {
+      path: relative,
+      phase: 'start',
+      owner: sessionizedOwner(event),
+      detail: toolName,
+      ...(toolName === 'Write' || toolName === 'Edit' ? { access: 'write' as const } : {}),
+    },
+  ];
 }
 
 /**

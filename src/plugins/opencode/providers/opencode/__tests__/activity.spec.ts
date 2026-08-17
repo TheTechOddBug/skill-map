@@ -90,7 +90,8 @@ describe('opencodeActivity.mapEvent', () => {
       output: { args: { filePath: `${DIR}/notes/todo.md`, content: '# updated' } },
     });
     assert.deepEqual(write, [
-      { path: 'notes/todo.md', phase: 'start', owner: SESSION, detail: 'write' },
+      // `access: 'write'` is the capture-level rung-3 stamp (2026-08-17).
+      { path: 'notes/todo.md', phase: 'start', owner: SESSION, detail: 'write', access: 'write' },
     ]);
     const edit = opencodeActivity.mapEvent({
       hook: 'tool.execute.before',
@@ -101,7 +102,7 @@ describe('opencodeActivity.mapEvent', () => {
       },
     });
     assert.deepEqual(edit, [
-      { path: 'notes/todo.md', phase: 'start', owner: SESSION, detail: 'edit' },
+      { path: 'notes/todo.md', phase: 'start', owner: SESSION, detail: 'edit', access: 'write' },
     ]);
   });
 

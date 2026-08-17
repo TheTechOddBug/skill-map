@@ -92,10 +92,17 @@ export interface IUserSettingsGithubStars {
  * user-scope features (locale, theme) extend the root, not
  * `updateCheck`.
  */
+/** Per-machine UI bookkeeping (spec `user-settings.schema.json#/properties/ui`). */
+export interface IUserSettingsUi {
+  /** Ids of one-time informational notes the operator closed. */
+  dismissedNotes?: string[];
+}
+
 export interface IUserSettings {
   schemaVersion: 1;
   updateCheck?: IUserSettingsUpdateCheck;
   githubStars?: IUserSettingsGithubStars;
+  ui?: IUserSettingsUi;
   telemetry?: IUserSettingsTelemetry;
 }
 
@@ -243,6 +250,18 @@ export function isUpdateCheckEnabled(): boolean {
  * a public number, not a report of anything about the operator. When it
  * is `false`, `GET /api/github-stars` performs no request at all.
  */
+/**
+ * The one-time UI notes the operator has dismissed (empty when none).
+ * A note dismissed once stays dismissed on every project this machine
+ * opens; that machine-wide reach is the whole reason the list lives
+ * here and not in a project layer.
+ */
+export function readDismissedNotes(): string[] {
+  const settings = readUserSettings();
+  const notes = settings.ui?.dismissedNotes;
+  return Array.isArray(notes) ? notes.filter((n) => typeof n === 'string') : [];
+}
+
 export function isGithubStarsEnabled(): boolean {
   const settings = readUserSettings();
   return settings.githubStars?.enabled !== false;

@@ -82,6 +82,17 @@
   />
 </div>
 
+<!-- Capture-ladder mirror (spec provider-activity.md, Capture level):
+     the same live selector the Sessions rail carries beside Record. -->
+<div smToggleRow class="settings-project__row" data-testid="settings-project-capture-level-row">
+  <div class="settings-project__row-text">
+    <span class="settings-project__row-label">{{ captureLevelTexts.label }}</span>
+    <div class="settings-project__row-description">
+      {{ captureLevelTexts.description }}
+    </div>
+  </div>
+  <sm-capture-level-selector />
+</div>
 <!-- Not a toggle: the replay tape this browser holds, plus the delete
      that owns its lifetime (nothing else erases it). -->
 <div smToggleRow class="settings-project__row" data-testid="settings-project-recording-row">

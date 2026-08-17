@@ -333,12 +333,13 @@ export const INSPECTOR_VIEW_TEXTS = {
     /**
      * Type-icon label for the directional recent rows
      * (spec/provider-activity.md §WS event: node.activity, kind): an MCP
-     * tool call vs a file read. Doubles as the icon tooltip and its
+     * tool call vs a file read vs a file write. Doubles as the icon tooltip and its
      * screen-reader label.
      */
     recentKind: {
       mcp: 'MCP tool call',
       read: 'File read',
+      write: 'File write',
     },
     /**
      * Three-state provenance filter over the merged timeline (user

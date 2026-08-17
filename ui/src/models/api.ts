@@ -1117,6 +1117,10 @@ export interface IPreferencesApi {
   githubStars: {
     enabled: boolean;
   };
+  /** Per-machine UI bookkeeping (ids of one-time notes the operator closed). */
+  ui: {
+    dismissedNotes: string[];
+  };
   telemetry: {
     errorsEnabled: boolean;
     usageCliEnabled: boolean;
@@ -1134,6 +1138,9 @@ export interface IPreferencesApi {
  * silently no-ops.
  */
 export interface IPreferencesPatchApi {
+  ui?: {
+    dismissedNotes?: string[];
+  };
   updateCheck?: {
     enabled?: boolean;
   };
@@ -1600,6 +1607,8 @@ export interface ISessionRecordingApi {
   sessionId?: string;
   rootOwner: string;
   provider?: string;
+  /** Capture-level stamp (minimum active while recording); absent on pre-ladder files. */
+  captureLevel?: string;
   startedAt: number;
   endedAt?: number;
   frames: Array<{
@@ -1636,7 +1645,7 @@ export interface IActivityRecentExecutionApi {
    * tool), `'read'` is a file read (has NO `detail`). Absent on a plain
    * execution of the node itself (no `caller` / `target`).
    */
-  kind?: 'mcp' | 'read';
+  kind?: 'mcp' | 'read' | 'write';
 }
 
 /**

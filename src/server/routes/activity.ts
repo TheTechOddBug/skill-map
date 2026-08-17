@@ -48,6 +48,7 @@
 import type { Hono } from 'hono';
 
 import type { WsBroadcaster } from '../broadcaster.js';
+import type { CaptureLevelState } from '../capture-level.js';
 import type { ActivityConversationStore } from '../activity-conversations.js';
 import type { ActivityJournalService } from '../activity-journal.js';
 import type { ActivityOwnerIndex } from '../activity-owner-index.js';
@@ -133,6 +134,13 @@ export interface IActivityRouteDeps extends IRouteDeps {
    * inside; a journal failure never fails ingest.
    */
   journal: ActivityJournalService;
+  /**
+   * Live capture level (spec provider-activity.md, Capture level): the
+   * ingest filter below drops resolved activity frames above it BEFORE
+   * stats, journal and broadcast. Spawn frames are `executions` by
+   * definition and always pass.
+   */
+  captureLevel: CaptureLevelState;
 }
 
 export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void {
@@ -180,6 +188,9 @@ function broadcastActivity(
   provider: string,
 ): void {
   for (const data of activity) {
+    // Capture-level gate: below the level, the event did not happen for
+    // skill-map (Real Time and every recording see the same truth).
+    if (!deps.captureLevel.passes(data)) continue;
     deps.journal.recordActivity(provider, data);
     const stats = deps.stats.record(data);
     const payload: INodeActivityEventData = stats ? { ...data, stats } : data;

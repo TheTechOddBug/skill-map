@@ -92,11 +92,26 @@ export interface IActivityPort {
    * server-side, plus the LIVE capture state (`recording`, so a
    * reloaded page restores its Record/Stop control). The Sessions tab
    * merges the recordings with the live client tape so sessions
-   * survive reloads and closed pages. Demo mode resolves
-   * `{ sessions: [], recording: false }` (the static bundle carries no
-   * journal).
+   * survive reloads and closed pages, and the live capture-level ladder
+   * position (`captureLevel`, spec §Capture level) so the selector
+   * hydrates. Demo mode resolves
+   * `{ sessions: [], recording: false, captureLevel: 'mcp' }` (the
+   * static bundle carries no journal).
    */
-  getSessionJournal(): Promise<{ sessions: ISessionRecordingApi[]; recording: boolean }>;
+  getSessionJournal(): Promise<{
+    sessions: ISessionRecordingApi[];
+    recording: boolean;
+    captureLevel: string;
+  }>;
+
+  /**
+   * Move the live capture level (`POST /api/activity/capture-level`,
+   * spec §Capture level): updates the serve-side ingest filter
+   * immediately (Real Time and every recording follow) and persists the
+   * project-local `activity.captureLevel` key. Resolves the effective
+   * level. Demo mode rejects with `code: 'demo-readonly'`.
+   */
+  setCaptureLevel(level: string): Promise<string>;
 
   /**
    * Toggle journal capture (`POST /api/activity/sessions/recording`,

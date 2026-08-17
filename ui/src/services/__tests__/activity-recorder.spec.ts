@@ -53,7 +53,7 @@ function bootstrap(activityEnabled = true, recording = true, serverRecording = f
   const setSessionRecording = vi.fn().mockResolvedValue(true);
   const getSessionJournal = vi
     .fn()
-    .mockResolvedValue({ sessions: [], recording: serverRecording });
+    .mockResolvedValue({ sessions: [], recording: serverRecording, captureLevel: 'mcp' });
   TestBed.configureTestingModule({
     providers: [
       { provide: WsEventStreamService, useValue: { events$ } as unknown as WsEventStreamService },

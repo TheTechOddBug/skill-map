@@ -409,9 +409,13 @@ function buildResolvedData(signal: IActivitySignal, nodePath: string): INodeActi
   // A PATH signal is a resource access (the runtime touched a file or an mcp
   // tool); a NAME signal is a unit's own execution. This split, not the node
   // kind, drives caller attribution (a unit reading another unit's file is
-  // still a read, not an execution of it).
+  // still a read, not an execution of it). The read-vs-write split is the
+  // ADAPTER's (spec field list: vendor write tools stamp `access: 'write'`);
+  // anything unstamped and non-mcp defaults to a read.
   if (signal.path !== undefined) {
-    resolved.access = signal.path.startsWith('mcp://') ? 'mcp' : 'read';
+    resolved.access = signal.path.startsWith('mcp://')
+      ? 'mcp'
+      : (signal.access ?? 'read');
   }
   return resolved;
 }

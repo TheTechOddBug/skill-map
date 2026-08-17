@@ -1,5 +1,17 @@
 /** UI strings for the SessionsView (the workspace rail's sessions panel). */
 export const SESSIONS_VIEW_TEXTS = {
+  /**
+   * One-time intro note above the Record control (user request
+   * 2026-08-17): recordings must never read as "we are storing your
+   * work"; the copy leads with what is NOT captured. Dismissal persists
+   * machine-wide (`~/.skill-map/settings.json`, ui.dismissedNotes).
+   */
+  introNoteId: 'sessions-recording-intro',
+  introNote:
+    'Recordings are content-free: they keep which skills, agents and files ' +
+    'lit up and when, never prompts, file contents or results. Replay ' +
+    're-animates that motion on the map; the work itself cannot be read back.',
+  introNoteDismiss: 'Got it',
   /** Friendly empty state, mirrors the queue view's "nothing here" tone. */
   empty: 'No sessions recorded yet.',
   emptyHint:
@@ -30,6 +42,19 @@ export const SESSIONS_VIEW_TEXTS = {
   /** `N events · M files · K agents` row stats. */
   stats: (events: number, files: number, agents: number): string =>
     `${events} ${events === 1 ? 'event' : 'events'} · ${files} ${files === 1 ? 'file' : 'files'} · ${agents} ${agents === 1 ? 'agent' : 'agents'}`,
+  /**
+   * Short capture-level tag on a session row's title (the level the
+   * recording was made under, from its journal stamp); keys mirror the
+   * ladder, absent stamp renders no tag.
+   */
+  levelTag: {
+    executions: 'exe',
+    reads: 'reads',
+    writes: 'writes',
+    mcp: 'mcp',
+    shell: 'shell',
+  } as Record<string, string>,
+  levelTagTooltip: (level: string): string => `Recorded at capture level: ${level}`,
   /** Separator between touched-node names in a session's title. */
   touchedSeparator: ' · ',
   /** Compact per-agent stats (no agent counter, the tree shows them). */

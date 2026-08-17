@@ -42,6 +42,7 @@ function prefs(updateCheck: boolean, telemetryOn: boolean): IPreferencesApi {
   return {
     updateCheck: { enabled: updateCheck },
     githubStars: { enabled: true },
+    ui: { dismissedNotes: [] },
     telemetry: {
       errorsEnabled: telemetryOn,
       usageCliEnabled: telemetryOn,

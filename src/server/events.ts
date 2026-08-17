@@ -179,7 +179,7 @@ export interface INodeActivityEventData {
    * the resolver from the signal shape (path signal = resource access, name
    * signal = unit execution); drives caller attribution + the typed recent log.
    */
-  access?: 'mcp' | 'read';
+  access?: 'mcp' | 'read' | 'write';
   /**
    * The node's CURRENT execution stats as accumulated server-side
    * (`activity-stats.ts`), attached by the ingest route to counted

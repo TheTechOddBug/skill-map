@@ -51,10 +51,10 @@ export interface IActivityRecentEntry {
    * the two ends of one invocation carry the same `detail` from both sides.
    */
   caller?: string;
-  /** On the INVOKER's mirrored entry: the accessed resource (mcp / read) node path. Absent on the resource's own entry. */
+  /** On the INVOKER's mirrored entry: the accessed resource (mcp / read / write) node path. Absent on the resource's own entry. */
   target?: string;
   /** Access type of an invocation/read entry: `'mcp'` (tool call) or `'read'` (file). Absent on a plain execution. */
-  kind?: 'mcp' | 'read';
+  kind?: 'mcp' | 'read' | 'write';
 }
 
 /** Per-node detail projection for the inspector endpoint. */
@@ -271,7 +271,7 @@ export class ActivityStatsService {
     nodePath: string,
     owner: string | undefined,
     detail: string | undefined,
-    access: 'mcp' | 'read' | undefined,
+    access: 'mcp' | 'read' | 'write' | undefined,
   ): INodeActivityStats {
     const state = this.stateFor(nodePath);
     state.count += 1;
@@ -297,7 +297,7 @@ export class ActivityStatsService {
   private correlateCaller(
     nodePath: string,
     owner: string | undefined,
-    access: 'mcp' | 'read' | undefined,
+    access: 'mcp' | 'read' | 'write' | undefined,
   ): string | undefined {
     if (access === undefined || owner === undefined) return undefined;
     const candidate = this.lastUnitByOwner.get(owner);
@@ -313,7 +313,7 @@ export class ActivityStatsService {
     nodePath: string,
     owner: string | undefined,
     detail: string | undefined,
-    access: 'mcp' | 'read' | undefined,
+    access: 'mcp' | 'read' | 'write' | undefined,
     caller: string | undefined,
     at: number,
   ): void {
@@ -350,7 +350,7 @@ function buildRecentEntry(p: {
   detail?: string | undefined;
   caller?: string | undefined;
   target?: string | undefined;
-  kind?: 'mcp' | 'read' | undefined;
+  kind?: 'mcp' | 'read' | 'write' | undefined;
 }): IActivityRecentEntry {
   const entry: IActivityRecentEntry = { at: p.at };
   if (p.owner !== undefined) entry.owner = p.owner;

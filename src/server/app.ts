@@ -120,6 +120,7 @@ import type { ActivityStatsService } from './activity-stats.js';
 import type { AgentPresenceTracker } from './agent-presence.js';
 import { registerActiveProviderRoute } from './routes/active-provider.js';
 import { registerActionsRoutes } from './routes/actions.js';
+import { CaptureLevelState } from './capture-level.js';
 import { registerActivityRoute } from './routes/activity.js';
 import { registerActivityCaptureRoutes } from './routes/activity-capture.js';
 import { registerActivityProbeRoute } from './routes/activity-probe.js';
@@ -486,6 +487,8 @@ export interface IAppDeps {
    * frames exclusively.
    */
   activityJournal: ActivityJournalService;
+  /** Live capture-level cell (spec provider-activity.md, Capture level). */
+  captureLevel: CaptureLevelState;
   /**
    * Boot-scoped agent-presence tracker (see `agent-presence.ts`).
    * Instantiated by the composition root, which ALSO registers its
@@ -794,6 +797,7 @@ export function createApp(deps: IAppDeps): Hono {
     probes: deps.activityProbes,
     conversations: deps.activityConversations,
     journal: deps.activityJournal,
+    captureLevel: deps.captureLevel,
   });
   // Wiring self-test readback, `GET /api/activity/probe?nonce=` (see
   // `spec/provider-activity.md` §Wiring self-test). Reports whether the
@@ -806,6 +810,7 @@ export function createApp(deps: IAppDeps): Hono {
   // gesture, one `activity.sessions-clear` operations line.
   registerActivitySessionsRoute(app, {
     journal: deps.activityJournal,
+    captureLevel: deps.captureLevel,
     sessionsDir: defaultProjectSessionsDir(deps.runtimeContext.cwd),
     runtimeContext: deps.runtimeContext,
   });

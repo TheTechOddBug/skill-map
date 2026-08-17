@@ -310,6 +310,40 @@ describe('ActivityJournalService grouping', () => {
   });
 });
 
+describe('ActivityJournalService capture-level stamp', () => {
+  it('stamps each recording with the MINIMUM level active while it captured', async () => {
+    const root = makeScope();
+    let level = 'mcp';
+    const journal = makeJournal(root, { captureLevel: () => level });
+    journal.recordActivity('claude', {
+      nodePath: 'README.md',
+      phase: 'start',
+      owner: 'main:s1',
+      session: 's1',
+    });
+    // The operator dips the selector mid-recording: the stamp must
+    // remember the weakest window (those frame classes are gone).
+    level = 'executions';
+    journal.recordActivity('claude', {
+      nodePath: '.claude/skills/deploy/SKILL.md',
+      phase: 'start',
+      owner: 'main:s1',
+    });
+    level = 'mcp';
+    journal.recordActivity('claude', { phase: 'end', sessionScope: true, session: 's1' });
+    await settle();
+
+    const files = sessionFiles(root);
+    assert.equal(files.length, 1);
+    const doc = readSession(root, files[0]!);
+    assert.equal(doc['captureLevel'], 'executions');
+    // The stamped envelope stays schema-legal.
+    const validated = loadSchemaValidators().validate('session-recording', doc);
+    assert.equal(validated.ok, true, validated.ok ? '' : validated.errors);
+    journal.shutdown();
+  });
+});
+
 describe('ActivityJournalService finalization', () => {
   it('finalizes on a sessionScope end: endedAt stamped + one operations-log line', async () => {
     const root = makeScope();

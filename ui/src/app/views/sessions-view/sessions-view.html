@@ -4,7 +4,29 @@
        toggle. Shared component (Files mounts it stop-only above its
        search). Always rendered, empty list included, or nothing could
        ever be recorded. -->
+  @if (introVisible()) {
+    <!-- One-time intro (dismiss persists machine-wide): leads with what
+         is NOT captured, so recording never reads as data hoarding. -->
+    <div class="sessions__intro-note" data-testid="sessions-intro-note">
+      <i class="pi pi-info-circle" aria-hidden="true"></i>
+      <span class="sessions__intro-text">{{ texts.introNote }}</span>
+      <button
+        type="button"
+        class="sessions__intro-dismiss"
+        (click)="dismissIntro()"
+        data-testid="sessions-intro-dismiss"
+      >
+        {{ texts.introNoteDismiss }}
+      </button>
+    </div>
+  }
   <sm-session-record-control />
+  <!-- Capture ladder (spec provider-activity.md, Capture level): how
+       deep the recording and the live map see, part of the record
+       gesture (mirrored in Settings > Project). -->
+  <div class="sessions__capture-level">
+    <sm-capture-level-selector />
+  </div>
   @if (recorder.size() === 0 && sessions().length === 0) {
     <div class="sessions__empty" data-testid="sessions-empty-none">
       <p>{{ texts.empty }}</p>
@@ -54,6 +76,15 @@
                   tooltipPosition="top"
                   >{{ sessionTitle(session) }}</span
                 >
+                @if (captureLevelTag(session); as tag) {
+                  <span
+                    class="sessions__level-tag"
+                    [pTooltip]="texts.levelTagTooltip(tag)"
+                    tooltipPosition="top"
+                    [attr.data-testid]="'sessions-level-' + session.ordinal"
+                    >{{ tag }}</span
+                  >
+                }
               </span>
               <!-- Subtitle: the runtime session id as a code chip (it
                    matches the journal filename suffix on disk; full

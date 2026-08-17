@@ -680,6 +680,7 @@ export class StaticDataSource implements IDataSourcePort {
     return {
       updateCheck: { enabled: true },
       githubStars: { enabled: true },
+      ui: { dismissedNotes: [] },
       telemetry: {
         errorsEnabled: false,
         usageCliEnabled: false,
@@ -874,8 +875,19 @@ export class StaticDataSource implements IDataSourcePort {
     );
   }
 
-  async getSessionJournal(): Promise<{ sessions: ISessionRecordingApi[]; recording: boolean }> {
-    return { sessions: [], recording: false };
+  async getSessionJournal(): Promise<{
+    sessions: ISessionRecordingApi[];
+    recording: boolean;
+    captureLevel: string;
+  }> {
+    return { sessions: [], recording: false, captureLevel: 'mcp' };
+  }
+
+  async setCaptureLevel(_level: string): Promise<string> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Moving the capture level is not available in demo mode (static bundle is immutable).',
+    );
   }
 
   async setSessionRecording(_recording: boolean): Promise<boolean> {

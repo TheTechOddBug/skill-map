@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>The stack trace is not the bug</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>The stack trace is not the bug</h1>
+
+  <p>The top line of a stack trace shows where the program gave up. It does not show where things went wrong. Those are usually two different places, and confusing them sends people fixing the wrong line.</p>
+
+  <h2>The top line is the symptom</h2>
+  <p>A null reference, a failed cast, a timeout: the top frame is where the program could no longer continue. It says nothing about why the value was null, why the type was wrong, or why the call took too long. It just marks the point of collapse.</p>
+
+  <h2>Walk back, not down</h2>
+  <p>The real work is reading the frames below the top one, in order, asking at each step whether the state passed in was already broken. The origin is usually several frames back, sometimes in a completely different module that handed off bad data and moved on before the failure showed up.</p>
+
+  <h2>Async and callbacks erase the trail</h2>
+  <p>A trace across an async boundary, a queue, or a retried call often loses the frames that would show the real origin. What is left points at the consumer, not the producer. In that case the trace is a hint about where to add logging next time, not an answer today.</p>
+
+  <h2>Fix the origin, not the crash site</h2>
+  <p>Patching the top frame, an extra null check, a wider try/catch, keeps the program running but leaves the actual defect in place. It resurfaces later, further downstream, with a trace that is even less useful than the last one. Trace the value back to where it went bad, and fix it there.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

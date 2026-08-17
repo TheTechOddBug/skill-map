@@ -31,6 +31,11 @@
       "minimum": 0,
       "description": "Unix-ms timestamp of the first frame attributed to this session."
     },
+    "captureLevel": {
+      "type": "string",
+      "enum": ["executions", "reads", "writes", "mcp", "shell"],
+      "description": "Capture level the recording was made under (provider-activity.md, Capture level): honest provenance of which frame classes could land. Absent on recordings that predate the ladder (treated as `mcp`, the historical full surface)."
+    },
     "endedAt": {
       "type": "integer",
       "minimum": 0,
@@ -94,7 +99,7 @@
         "sticky": { "type": "boolean" },
         "keepAlive": { "type": "boolean" },
         "detail": { "type": "string" },
-        "access": { "type": "string", "enum": ["mcp", "read"] }
+        "access": { "type": "string", "enum": ["mcp", "read", "write"] }
       }
     },
     "AgentSpawnData": {

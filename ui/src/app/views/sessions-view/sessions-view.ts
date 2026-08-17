@@ -47,7 +47,10 @@ import {
   type ISessionReplaySelection,
   type ISessionStep,
 } from '../../../services/session-index';
+import { CaptureLevelService } from '../../../services/capture-level';
+import { DismissedNotesService } from '../../../services/dismissed-notes';
 import { SessionPurgeService } from '../../../services/session-purge';
+import { CaptureLevelSelector } from '../../components/capture-level-selector/capture-level-selector';
 import { SessionRecordControl } from '../../components/session-record-control/session-record-control';
 import { SESSION_REPLAY_INTENT } from '../../slots/session-replay-intent';
 
@@ -61,7 +64,14 @@ const TIME_FORMAT = new Intl.DateTimeFormat('en-US', {
 
 @Component({
   selector: 'sm-sessions-view',
-  imports: [NgTemplateOutlet, ButtonModule, PaginatorModule, TooltipModule, SessionRecordControl],
+  imports: [
+    NgTemplateOutlet,
+    ButtonModule,
+    PaginatorModule,
+    TooltipModule,
+    CaptureLevelSelector,
+    SessionRecordControl,
+  ],
   templateUrl: './sessions-view.html',
   styleUrl: './sessions-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -72,6 +82,15 @@ export class SessionsView {
   private readonly replayIntent = inject(SESSION_REPLAY_INTENT);
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly purge = inject(SessionPurgeService);
+  private readonly captureLevelSvc = inject(CaptureLevelService);
+  private readonly notes = inject(DismissedNotesService);
+
+  /** The recording intro note (see the texts entry for the intent). */
+  protected readonly introVisible = this.notes.visible(SESSIONS_VIEW_TEXTS.introNoteId);
+
+  protected dismissIntro(): void {
+    this.notes.dismiss(SESSIONS_VIEW_TEXTS.introNoteId);
+  }
   private readonly destroyRef = inject(DestroyRef);
   protected readonly texts = SESSIONS_VIEW_TEXTS;
 
@@ -170,14 +189,31 @@ export class SessionsView {
 
   private async refreshJournal(): Promise<void> {
     try {
-      const { sessions } = await this.dataSource.getSessionJournal();
+      const { sessions, captureLevel } = await this.dataSource.getSessionJournal();
       this.journalRecordings.set(sessions);
+      // The envelope carries the live ladder position: hydrate the
+      // shared service so the selector needs no extra request.
+      this.captureLevelSvc.hydrate(captureLevel);
     } catch {
       // Best-effort (demo mode, server down): the tape still lists.
     }
   }
 
   protected readonly playAvailable = this.liveLens.available;
+
+  /**
+   * Capture-level tag for a session row (user request 2026-08-17): the
+   * stamp of the journal recording holding this session's root. Covers
+   * tape-native rows too, the journal records in parallel while the
+   * tape does; sessions with no journal recording (demo mode, journal
+   * off, pre-ladder files) show no tag.
+   */
+  protected captureLevelTag(session: ISessionEntry): string | null {
+    const recording = this.journalRecordings().find((r) => r.rootOwner === session.rootOwner);
+    const level = recording?.captureLevel;
+    if (level === undefined) return null;
+    return this.texts.levelTag[level] ?? level;
+  }
 
   /**
    * The IN-FLIGHT session while recording: frames still landing after

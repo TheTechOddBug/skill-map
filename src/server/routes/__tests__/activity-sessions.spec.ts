@@ -184,6 +184,73 @@ describe('POST /api/activity/sessions/recording', () => {
     }
   });
 
+  it('the capture level hydrates at default, moves live, and persists project-local', async () => {
+    await bootAndUse(async (handle) => {
+      const before = (await (await fetch(url(handle, '/api/activity/sessions'))).json()) as {
+        captureLevel: string;
+      };
+      assert.equal(before.captureLevel, 'mcp'); // the historical full surface
+
+      const moved = await fetch(url(handle, '/api/activity/capture-level'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ level: 'reads' }),
+      });
+      assert.equal(moved.status, 200);
+      assert.deepEqual(await moved.json(), { captureLevel: 'reads' });
+
+      const after = (await (await fetch(url(handle, '/api/activity/sessions'))).json()) as {
+        captureLevel: string;
+      };
+      assert.equal(after.captureLevel, 'reads');
+
+      // Persisted to the project-LOCAL layer (an operational knob,
+      // never the committed settings.json).
+      const local = JSON.parse(
+        readFileSync(join(scopeRoot, '.skill-map', 'settings.local.json'), 'utf8'),
+      ) as { activity?: { captureLevel?: string } };
+      assert.equal(local.activity?.captureLevel, 'reads');
+
+      // Off-ladder values are a 400, not a silent default.
+      const bad = await fetch(url(handle, '/api/activity/capture-level'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ level: 'everything' }),
+      });
+      assert.equal(bad.status, 400);
+    });
+    rmSync(join(scopeRoot, '.skill-map', 'settings.local.json'), { force: true });
+  });
+
+  it('the capture level LOCKS while recording: the POST answers the unchanged level', async () => {
+    await bootAndUse(async (handle) => {
+      await fetch(url(handle, '/api/activity/sessions/recording'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ recording: true }),
+      });
+      const refused = await fetch(url(handle, '/api/activity/capture-level'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ level: 'executions' }),
+      });
+      assert.deepEqual(await refused.json(), { captureLevel: 'mcp' }); // unchanged
+
+      await fetch(url(handle, '/api/activity/sessions/recording'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ recording: false }),
+      });
+      const moved = await fetch(url(handle, '/api/activity/capture-level'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ level: 'executions' }),
+      });
+      assert.deepEqual(await moved.json(), { captureLevel: 'executions' });
+    });
+    rmSync(join(scopeRoot, '.skill-map', 'settings.local.json'), { force: true });
+  });
+
   it('the master switch off refuses to engage: the response answers with the EFFECTIVE state', async () => {
     // Boot with `activity.journal.enabled: false` in the project layer;
     // the toggle must answer honestly instead of pretending to record.

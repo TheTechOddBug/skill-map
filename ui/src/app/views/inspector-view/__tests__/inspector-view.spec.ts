@@ -211,7 +211,8 @@ function makeStubDataSource(): IStubDataSource {
     }),
     clearNodeActivity: vi.fn().mockResolvedValue(undefined),
     clearSessionJournal: vi.fn().mockResolvedValue(undefined),
-    getSessionJournal: vi.fn().mockResolvedValue({ sessions: [], recording: false }),
+    getSessionJournal: vi.fn().mockResolvedValue({ sessions: [], recording: false, captureLevel: 'mcp' }),
+  setCaptureLevel: vi.fn().mockResolvedValue('mcp'),
     setSessionRecording: vi.fn().mockResolvedValue(true),
     getNodeFindings: vi.fn().mockResolvedValue({
       schemaVersion: '1',

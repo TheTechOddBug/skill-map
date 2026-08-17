@@ -579,14 +579,36 @@ export class RestDataSource implements IDataSourcePort {
   }
 
   /** `GET /api/activity/sessions`, the journal read-back for the Sessions tab. */
-  async getSessionJournal(): Promise<{ sessions: ISessionRecordingApi[]; recording: boolean }> {
+  async getSessionJournal(): Promise<{
+    sessions: ISessionRecordingApi[];
+    recording: boolean;
+    captureLevel: string;
+  }> {
     try {
       const body = await firstValueFrom(
-        this.http.get<{ sessions: ISessionRecordingApi[]; recording: boolean }>(
-          `${BASE}/activity/sessions`,
-        ),
+        this.http.get<{
+          sessions: ISessionRecordingApi[];
+          recording: boolean;
+          captureLevel: string;
+        }>(`${BASE}/activity/sessions`),
       );
-      return { sessions: body.sessions, recording: body.recording };
+      return {
+        sessions: body.sessions,
+        recording: body.recording,
+        captureLevel: body.captureLevel,
+      };
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
+  /** `POST /api/activity/capture-level`, the live ladder move. */
+  async setCaptureLevel(level: string): Promise<string> {
+    try {
+      const body = await firstValueFrom(
+        this.http.post<{ captureLevel: string }>(`${BASE}/activity/capture-level`, { level }),
+      );
+      return body.captureLevel;
     } catch (err) {
       throw this.translateError(err);
     }

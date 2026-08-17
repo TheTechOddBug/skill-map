@@ -92,6 +92,8 @@ interface IJournalSession {
   rootOwner: string;
   sessionId?: string;
   provider?: string;
+  /** Minimum capture level observed while frames landed (see options). */
+  captureLevelMin?: string;
   startedAt: number;
   lastFrameAt: number;
   frames: IJournalFrame[];
@@ -107,6 +109,14 @@ export interface IActivityJournalOptions {
   sessionsDir: string;
   /** Scope root, threaded to `appendOperation` at finalization. */
   cwd: string;
+  /**
+   * Live capture-level getter (spec provider-activity.md, Capture
+   * level): sampled per appended frame so each recording can stamp the
+   * MINIMUM level active while it captured (honest provenance for the
+   * observed-* absence gates). Absent (tests, legacy callers) = no
+   * stamp.
+   */
+  captureLevel?: () => string;
   /** Test injection: retention / cadence overrides and a fake clock. */
   maxFiles?: number;
   maxTotalBytes?: number;
@@ -122,6 +132,7 @@ export class ActivityJournalService {
   private readonly maxTotalBytes: number;
   private readonly debounceMs: number;
   private readonly now: () => number;
+  private readonly captureLevel: (() => string) | undefined;
 
   /** Open sessions keyed by root owner, in creation order. */
   private readonly sessions = new Map<string, IJournalSession>();
@@ -158,6 +169,7 @@ export class ActivityJournalService {
     this.maxTotalBytes = opts.maxTotalBytes ?? JOURNAL_MAX_TOTAL_BYTES;
     this.debounceMs = opts.debounceMs ?? JOURNAL_DEBOUNCE_MS;
     this.now = opts.now ?? Date.now;
+    this.captureLevel = opts.captureLevel;
     // Boot-time prune: a prior boot's backlog is trimmed before this one
     // adds files (spec §Session journal · Retention).
     if (this.enabled) this.prune();
@@ -479,9 +491,28 @@ export class ActivityJournalService {
   ): void {
     session.lastFrameAt = tMs;
     if (session.provider === undefined) session.provider = provider;
+    this.stampCaptureLevel(session);
     if (session.frames.length >= JOURNAL_MAX_FRAMES_PER_SESSION) return; // saturate
     session.frames.push({ tMs, type, data });
     session.dirty = true;
+  }
+
+  /**
+   * Track the MINIMUM capture level active while this session recorded
+   * (rank order per spec: executions < reads < writes < mcp < shell).
+   * The minimum is the honest stamp: a window that dipped to a lower
+   * level lost that class of frames for good.
+   */
+  private stampCaptureLevel(session: IJournalSession): void {
+    const level = this.captureLevel?.();
+    if (level === undefined) return;
+    if (session.captureLevelMin === undefined) {
+      session.captureLevelMin = level;
+      return;
+    }
+    if (levelRankOf(level) < levelRankOf(session.captureLevelMin)) {
+      session.captureLevelMin = level;
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -525,6 +556,9 @@ export class ActivityJournalService {
         ...(session.sessionId === undefined ? {} : { sessionId: session.sessionId }),
         rootOwner: session.rootOwner,
         ...(session.provider === undefined ? {} : { provider: session.provider }),
+        ...(session.captureLevelMin === undefined
+          ? {}
+          : { captureLevel: session.captureLevelMin }),
         startedAt: session.startedAt,
         ...(endedAt === undefined ? {} : { endedAt }),
         frames: session.frames,
@@ -644,4 +678,11 @@ function mergeOrphanInto(into: IJournalSession, orphan: IJournalSession): void {
     into.provider = orphan.provider;
   }
   into.dirty = true;
+}
+
+/** Ladder rank for the provenance stamp (mirrors `capture-level.ts`). */
+const LEVEL_ORDER = ['executions', 'reads', 'writes', 'mcp', 'shell'];
+function levelRankOf(level: string): number {
+  const at = LEVEL_ORDER.indexOf(level);
+  return at === -1 ? LEVEL_ORDER.length : at;
 }

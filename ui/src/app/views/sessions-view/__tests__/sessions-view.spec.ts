@@ -16,6 +16,7 @@ import { ActivityRecorderService, type TRecordedEvent } from '../../../../servic
 import { DATA_SOURCE } from '../../../../services/data-source/data-source.port';
 import { LiveLensService } from '../../../../services/live-lens';
 import { NodeActivityService } from '../../../../services/node-activity';
+import { CaptureLevelService } from '../../../../services/capture-level';
 import { SessionPurgeService } from '../../../../services/session-purge';
 import { SESSION_RECORD_INTENT } from '../../../slots/session-record-intent';
 import { SESSION_REPLAY_INTENT } from '../../../slots/session-replay-intent';
@@ -61,6 +62,8 @@ function makeFixture(init?: {
   replaying?: boolean;
   /** Server-journal recordings the hydration fetch resolves. */
   journal?: ISessionRecordingApi[];
+  journalCaptureLevel?: string;
+  dismissedNotes?: string[];
 }) {
   const recording = signal(init?.recording ?? false);
   const replaying = signal(init?.replaying ?? false);
@@ -90,7 +93,12 @@ function makeFixture(init?: {
   const stopRecording = vi.fn(() => recording.set(false));
   const getSessionJournal = vi
     .fn()
-    .mockResolvedValue({ sessions: init?.journal ?? [], recording: false });
+    .mockResolvedValue({ sessions: init?.journal ?? [], recording: false, captureLevel: init?.journalCaptureLevel ?? 'mcp' });
+  const setCaptureLevel = vi.fn((level: string) => Promise.resolve(level));
+  const getPreferences = vi
+    .fn()
+    .mockResolvedValue({ ui: { dismissedNotes: init?.dismissedNotes ?? ['sessions-recording-intro'] } });
+  const setPreferences = vi.fn().mockResolvedValue({});
   const purgedAt = signal(0);
 
   TestBed.resetTestingModule();
@@ -101,7 +109,7 @@ function makeFixture(init?: {
       { provide: ActivityPlaybackService, useValue: playback },
       { provide: LiveLensService, useValue: lens },
       { provide: NodeActivityService, useValue: nodeActivity },
-      { provide: DATA_SOURCE, useValue: { getSessionJournal } },
+      { provide: DATA_SOURCE, useValue: { getSessionJournal, setCaptureLevel, getPreferences, setPreferences } },
       { provide: SESSION_REPLAY_INTENT, useValue: { replaySession } },
       { provide: SESSION_RECORD_INTENT, useValue: { startRecording, stopRecording } },
       {
@@ -112,7 +120,25 @@ function makeFixture(init?: {
   });
   const fixture = TestBed.createComponent(SessionsView);
   fixture.detectChanges();
-  return { fixture, replaySession, startRecording, stopRecording, playbackExit, getSessionJournal, purgedAt };
+  return {
+    fixture,
+    replaySession,
+    startRecording,
+    stopRecording,
+    playbackExit,
+    getSessionJournal,
+    setCaptureLevel,
+    setPreferences,
+    purgedAt,
+  };
+}
+
+/** Click the Nth capture-level option (PrimeNG togglebutton host). */
+function clickLevelOption(fixture: { nativeElement: HTMLElement }, index: number): void {
+  const selector = fixture.nativeElement.querySelector('[data-testid="capture-level-selector"]')!;
+  const option = selector.querySelectorAll('p-togglebutton')[index] as HTMLElement;
+  option.click();
+  (option.querySelector('span') as HTMLElement | null)?.click();
 }
 
 /** Settle the mount-time journal fetch, then re-render. */
@@ -264,6 +290,72 @@ describe('SessionsView', () => {
       '[data-testid="sessions-play-1"] button',
     ) as HTMLButtonElement;
     expect(donePlay.disabled).toBe(false);
+  });
+
+  it('shows the content-free intro note until dismissed; dismissing persists machine-wide', async () => {
+    const { fixture, setPreferences } = makeFixture({ dismissedNotes: [] });
+    await hydrated(fixture);
+    const note = fixture.nativeElement.querySelector('[data-testid="sessions-intro-note"]');
+    expect(note?.textContent).toContain('content-free');
+
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="sessions-intro-dismiss"]',
+      ) as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="sessions-intro-note"]'),
+    ).toBeNull();
+    expect(setPreferences).toHaveBeenCalledWith({
+      ui: { dismissedNotes: ['sessions-recording-intro'] },
+    });
+  });
+
+  it('a session row tags the capture level its recording was made under', async () => {
+    const recording: ISessionRecordingApi = {
+      schemaVersion: 1,
+      sessionId: 'abc-123',
+      rootOwner: 'main:abc-123',
+      captureLevel: 'executions',
+      startedAt: T0,
+      frames: [
+        {
+          tMs: T0 + 1,
+          type: 'node.activity',
+          data: { nodePath: '.claude/skills/deploy/SKILL.md', phase: 'start', owner: 'main:abc-123', detail: 'Skill' },
+        },
+      ],
+    };
+    const { fixture } = makeFixture({ tape: [], journal: [recording] });
+    await hydrated(fixture);
+    const tag = fixture.nativeElement.querySelector('[data-testid="sessions-level-1"]');
+    expect(tag?.textContent?.trim()).toBe('exe');
+  });
+
+  it('the capture-level selector LOCKS while recording (clicks change nothing)', async () => {
+    const locked = makeFixture({ recording: true });
+    await hydrated(locked.fixture);
+    clickLevelOption(locked.fixture, 0); // try to drop to executions
+    locked.fixture.detectChanges();
+    expect(locked.setCaptureLevel).not.toHaveBeenCalled();
+
+    // Not recording: the same click moves the ladder.
+    const open = makeFixture({ recording: false });
+    await hydrated(open.fixture);
+    clickLevelOption(open.fixture, 0);
+    open.fixture.detectChanges();
+    await hydrated(open.fixture);
+    expect(open.setCaptureLevel).toHaveBeenCalledWith('executions');
+  });
+
+  it('mounts the capture-level selector and hydrates the shared service from the envelope', async () => {
+    const { fixture } = makeFixture({ journalCaptureLevel: 'reads' });
+    await hydrated(fixture);
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="capture-level-selector"]'),
+    ).toBeTruthy();
+    expect(TestBed.inject(CaptureLevelService).level()).toBe('reads');
   });
 
   it('a settled purge refetches the journal even with an already-empty tape', async () => {
