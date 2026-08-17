@@ -1,5 +1,45 @@
 # Spec changelog
 
+## 1.11.0
+
+### Minor Changes
+
+- New `core/observed-link-dead` analyzer, the dead-design detector: one `info` issue per declared `invokes`/`references` link that recorded sessions could have observed firing (target an `mcp://` or agent node) but never did, gated on the source having executed at least 3 times (`IAnalyzerContext.observedExecutions`, the journal fold's new per-node run counts). Rows join "Observed in sessions" in the inspector; dismissible, no auto-fixer. Ships `experimental` (disabled until opted in).
+
+  ## User-facing
+
+  skill-map now questions your design in both directions: besides pointing out what your agents used without you mentioning it, "Observed in sessions" also flags declared references that never fired across enough recorded sessions, so you can prune or rework stale links.
+
+- New `core/observed-node-dead` analyzer: one `info` issue per runnable node (skill, agent, command) that never executed in any recorded session, gated on 20 ACTIVE sessions of evidence. All three design-vs-reality gates are now per-extension integer settings (defaults 20/3/3) via `sm plugins config` or Settings. Because the journal files ARE the evidence, the replay trash now clears the browser tape only; the full wipe stays in Settings. The trio ships `experimental` (disabled until opted in).
+
+  ## User-facing
+
+  skill-map can now tell you which skills, agents, or commands never run: after enough recorded sessions, untouched units get flagged under "Observed in sessions". The replay's trash button now only clears the local tape; deleting the saved session files stays in Settings.
+
+- The session-journal fold gains the `reads` relation class (an `access: 'read'` frame correlated to its reading unit by owner), turn-bounded (a `turnEnd` clears the owner's unit claim) and gated against noise: `observed-link-missing` flags a read pair only past 3 observations and accepts a `points` link as coverage, while `observed-link-dead` now judges `references` links toward ANY scanned target (an observed read confirms them; `invokes` links still require an mcp or agent target).
+
+  ## User-facing
+
+  Recorded sessions now track which files your skills and agents actually read: repeated reads of something you never reference get flagged, and a declared reference that keeps being read counts as confirmed instead of dead.
+
+- New `session-recording.schema.json` (the per-session activity journal envelope, content-free frames of the WS wire shapes) plus its contracts: `provider-activity.md` gains the Session journal section, `architecture.md` adds `.skill-map/sessions/` as the fifth Storage-rule home, `cli-contract.md` adds the `activity.session-write` operations slug and the `sessions/` scope-ignore entry, and `project-config.schema.json` adds `activity.journal.enabled` (default true).
+
+- New `DELETE /api/activity/sessions` endpoint: empties the session journal (every `.skill-map/sessions/*.json` plus the serve process's open in-memory buffers, one `activity.sessions-clear` operations line, always 204). The UI's delete-recording affordances (Settings row, replay transport trash) now call it together with clearing the browser tape, behind a single confirm that warns the observed-relations evidence for the next scan goes with it.
+
+  ## User-facing
+
+  Deleting the recording now asks first and erases both memories in one gesture: the browser tape and the project's session journal on disk. The warning explains that "Observed in sessions" findings lose their evidence until new sessions are recorded.
+
+- Journal capture is now a GESTURE: `POST /api/activity/sessions/recording` toggles server-side capture (driven by the Record control, surviving reloads), so nothing lands in `.skill-map/sessions/` unless the operator records. New `GET /api/activity/sessions` read-back hydrates the Sessions tab, so sessions recorded before the page opened list and replay off their own frames. Claude wires `SessionEnd` for exact finalization, and the executing-spine dressing no longer misses trigger-style links.
+
+  ## User-facing
+
+  Session files are written only between Record and Stop (recording survives a page reload). The Sessions tab now remembers what was recorded on disk, replayable later or from another browser, and executed-together highlighting no longer misses @trigger links.
+
+### Patch Changes
+
+- The telemetry taxonomy's `ui.feature.<feature>` closed set gains `ui.feature.sessions`, the workspace rail's new Sessions tab.
+
 ## 1.10.1
 
 ### Patch Changes

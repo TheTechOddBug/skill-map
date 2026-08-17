@@ -2,6 +2,66 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.11.0",
+      "date": "2026-08-17",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "skill-map now questions your design in both directions: besides pointing out what your agents used without you mentioning it, \"Observed in sessions\" also flags declared references that never fired across enough recorded sessions, so you can prune or rework stale links.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "skill-map can now tell you which skills, agents, or commands never run: after enough recorded sessions, untouched units get flagged under \"Observed in sessions\". The replay's trash button now only clears the local tape; deleting the saved session files stays in Settings.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Recorded sessions now track which files your skills and agents actually read: repeated reads of something you never reference get flagged, and a declared reference that keeps being read counts as confirmed instead of dead.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Recording moved into the Sessions tab: press Record session to capture and watch live, Stop to finish; nothing records on its own anymore. While a replay runs the button becomes Exit replay (also shown atop Files), and long session lists paginate like the queue.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "skill-map now remembers your AI sessions on disk and, at the next scan, points out things your agents actually used that your files never mention, under \"Observed in sessions\", so you can add the missing reference or dismiss the hint.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Deleting the recording now asks first and erases both memories in one gesture: the browser tape and the project's session journal on disk. The warning explains that \"Observed in sessions\" findings lose their evidence until new sessions are recorded.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Session files are written only between Record and Stop (recording survives a page reload). The Sessions tab now remembers what was recorded on disk, replayable later or from another browser, and executed-together highlighting no longer misses @trigger links.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "New Sessions tab next to Files and Queue: every AI session your map observed, with the agents each one spawned. Press Play on a session (or a single agent) to rewatch exactly what it did on the map, without re-running anything.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.10.1",
       "date": "2026-08-15",
       "kind": "user-facing",
