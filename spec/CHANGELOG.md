@@ -1,5 +1,45 @@
 # Spec changelog
 
+## 1.12.1
+
+### Patch Changes
+
+- The antigravity live-activity adapter maps markdown writes and joins the shell capture rung: `write_to_file` / `replace_file_content` emit write signals (both carry an absolute `TargetFile`, live-characterised on agy 1.1.14), and the opt-in `run_command` hook yields shell path sightings resolved against the command's own `Cwd`. The spec's antigravity row also documents the workspace-trust gate (hooks load only for trusted folders).
+
+  ## User-facing
+
+  On Antigravity, file edits now light the map as writes, and shell capture is available: opt in with `sm activity install antigravity --shell`, pick the Shell level, and .md files named in terminal commands show up in recordings.
+
+- The codex live-activity adapter now maps markdown writes: upstream shipped hook events for `apply_patch`, so the PreToolUse matcher includes it and each `.md` target named by the patch headers becomes a write signal (`access: 'write'`, `detail: 'apply_patch'`). The spec's codex row also documents the 0.147 hook-trust gate (a fresh install fires nothing until the operator trusts the hooks via `/hooks`) and re-verifies the still-open `read_file` gap.
+
+  ## User-facing
+
+  On Codex, file edits now light the map and count as writes in recordings (Codex added hook support for its patch tool). Note: Codex 0.147 asks you to trust hooks via /hooks before any events flow.
+
+- The shell capture rung is available on codex: codex 0.147 reports its shell tool as `Bash` with the claude payload shape, so the shared shell mapper applies and `sm activity install codex --shell` renders the same opt-in `^Bash$` hook behind the same double opt-in. The claude shell mapper moved to the shared adapter util so the two runtimes cannot drift.
+
+  ## User-facing
+
+  Shell capture now works on Codex too: opt in with `sm activity install codex --shell`, pick the Shell level, and .md files named in shell commands light the map, which also catches docs Codex reads via cat or sed.
+
+- The Settings shell-unlock line is lens-conditioned instead of hardcoding claude: the `GET /api/activity/install` envelope gains `shellOptIn` (whether the provider's descriptor carries the shell opt-in event), and the capture-level row renders the opt-in command for the ACTIVE lens, an "unavailable on this lens" note for providers without the rung, or nothing while the lens probe is unresolved.
+
+  ## User-facing
+
+  The shell capture instructions in Settings now follow your active lens: they show the command for the provider you are actually using, and tell you when that provider has no shell capture instead of suggesting a Claude command.
+
+- The shell capture rung reaches opencode through a plugin-file opt-in dialect: the generated activity plugin carries a `{{SHELL_ON}}` wiring filter resolved at install render, so bash command lines never leave the host process until `sm activity install opencode --shell` re-renders it (closing a posture gap where bash events were forwarded and discarded server-side); once opted in, `.md` paths in bash commands land as shell sightings. All four activity providers now own the rung.
+
+  ## User-facing
+
+  Shell capture now works on OpenCode too: opt in with `sm activity install opencode --shell`, pick the Shell level, and .md files named in shell commands light the map. Without the opt-in, command lines now never leave the OpenCode process at all.
+
+- Shell path sightings (capture level rung 5) no longer count as node executions: the stats accumulator routes them to the typed recent log only, and the spec names the exclusion explicitly. The shell opt-in writers (`sm activity install --shell`/`--no-shell` and the HTTP install body's `shellCapture` field) now refuse a provider whose descriptor carries no shell opt-in event, so the capture-level `shell` selector can never unlock with no capture wired behind it.
+
+  ## User-facing
+
+  Paths mentioned in shell commands no longer count as node executions (they still appear in the recent activity log), and the shell capture opt-in is only accepted for providers that support it (Claude today).
+
 ## 1.12.0
 
 ### Minor Changes
