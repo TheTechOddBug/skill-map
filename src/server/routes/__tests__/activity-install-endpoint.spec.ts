@@ -183,17 +183,13 @@ describe('GET /api/activity/install, status probe', () => {
     });
   });
 
-  it('shellOptIn follows the descriptor: codex + antigravity own the rung, opencode never can', async () => {
+  it('shellOptIn is true for every built-in activity provider (all four own the rung)', async () => {
     await bootAndUse(async (handle) => {
-      for (const id of ['codex', 'antigravity']) {
+      for (const id of ['codex', 'antigravity', 'opencode']) {
         const envelope = (await (await getStatus(handle, id)).json()) as IStatusEnvelope;
         assert.equal(envelope.supported, true, id);
         assert.equal(envelope.shellOptIn, true, id);
       }
-      // plugin-file shape: no events, structurally rung-less.
-      const opencode = (await (await getStatus(handle, 'opencode')).json()) as IStatusEnvelope;
-      assert.equal(opencode.supported, true);
-      assert.equal(opencode.shellOptIn, false);
     });
   });
 
@@ -352,29 +348,25 @@ describe('POST /api/activity/install, consent gate + effects', () => {
     });
   });
 
-  it('body shellCapture is refused (400) for a provider without the shell opt-in event', async () => {
+  it('body shellCapture on opencode re-renders the plugin with the bash filter open', async () => {
     await bootAndUse(async (handle) => {
-      // opencode (plugin-file, no events) declares no optIn: 'shell'
-      // event, so the field is refused BEFORE anything persists (the
-      // key would unlock the shell selector with no capture wired, and
-      // that provider's uninstall would never retire it).
+      // The plugin-file dialect of the opt-in (2026-08-18): the field
+      // persists the key and the re-rendered plugin resolves the
+      // {{SHELL_ON}} wiring filter, so bash payloads start leaving the
+      // host process only from this install on. (The refusal path for
+      // rung-less providers is pinned at the engine level with
+      // synthetic shapes; every built-in owns the rung now.)
       const res = await post(handle, '/api/activity/install', {
         provider: 'opencode',
         confirm: true,
         shellCapture: true,
       });
-      assert.equal(res.status, 400);
-      const envelope = (await res.json()) as { error: { message: string } };
-      assert.equal(envelope.error.message.includes('shell'), true);
-      assert.equal(
-        existsSync(join(root.fixtureRoot, '.skill-map', 'settings.local.json')),
-        false,
+      assert.equal(res.status, 200);
+      const plugin = readFileSync(
+        join(root.fixtureRoot, '.opencode', 'plugin', 'skill-map-activity.js'),
+        'utf8',
       );
-      // And nothing was installed either: the gate fires before the merge.
-      assert.equal(
-        existsSync(join(root.fixtureRoot, '.opencode', 'plugin', 'skill-map-activity.js')),
-        false,
-      );
+      assert.equal(plugin.includes("input.tool === 'bash' && !true"), true);
     });
   });
 

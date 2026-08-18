@@ -864,6 +864,14 @@ export interface IProviderActivityAdapter {
    * filters that keep high-frequency host traffic from ever leaving
    * the process. Payload knowledge exactly like `mapEvent`: it lives
    * with the Provider, never in the manifest and never in core.
+   *
+   * The source MAY parameterize a wiring-level filter on the
+   * `{{SHELL_ON}}` placeholder (`core/activity/plugin-template.ts`),
+   * the plugin-file dialect of a `json-hooks` descriptor's
+   * `optIn: 'shell'` event (spec provider-activity.md §Capture level
+   * rung 5): the install render resolves it to the stored opt-in, and
+   * its presence marks the provider shell-capable
+   * (`providerOwnsShellOptIn`).
    */
   pluginHooksSource?: string;
 }

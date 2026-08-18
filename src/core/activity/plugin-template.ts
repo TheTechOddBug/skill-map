@@ -108,14 +108,31 @@ export const SkillMapActivity = async ({ directory }) => {
 `;
 
 /**
+ * Shell opt-in placeholder for `plugin-file` hook sources (the
+ * plugin-file analogue of a `json-hooks` descriptor's
+ * `optIn: 'shell'` event, spec provider-activity.md §Capture level
+ * rung 5): a `pluginHooksSource` that parameterizes a WIRING-LEVEL
+ * filter on this token declares the shell capability, and the render
+ * substitutes the stored opt-in so the filtered tool's payloads never
+ * leave the host process without it. `providerOwnsShellOptIn` derives
+ * the capability from the token's presence, one source of truth.
+ */
+export const SHELL_ON_PLACEHOLDER = '{{SHELL_ON}}';
+
+/**
  * The exact plugin source `sm activity install` writes for `providerId`:
  * the shared envelope with the provider's own hook registrations
- * (`IProviderActivityAdapter.pluginHooksSource`) spliced in.
+ * (`IProviderActivityAdapter.pluginHooksSource`) spliced in, its shell
+ * placeholder (when present) resolved to the opt-in state.
  */
-export function renderActivityPlugin(providerId: string, hooksSource: string): string {
+export function renderActivityPlugin(
+  providerId: string,
+  hooksSource: string,
+  shellOn = false,
+): string {
   return PLUGIN_TEMPLATE.replace('{{SM_VERSION}}', VERSION)
     .replace('{{PROVIDER_ID}}', providerId)
-    .replace('{{HOOKS}}', hooksSource);
+    .replace('{{HOOKS}}', hooksSource.replaceAll(SHELL_ON_PLACEHOLDER, shellOn ? 'true' : 'false'));
 }
 
 /**

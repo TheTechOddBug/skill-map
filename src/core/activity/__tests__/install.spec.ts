@@ -24,6 +24,7 @@ import {
   demoteShellCaptureLevel,
   findActivityProvider,
   installActivityBridge,
+  providerOwnsShellOptIn,
   uninstallActivityBridge,
 } from '../install.js';
 import { ACTIVITY_PLUGIN_MARKER, renderActivityPlugin } from '../plugin-template.js';
@@ -249,6 +250,77 @@ describe('core/activity install engine', () => {
     assert.equal(
       readConfigValue<string>('activity.captureLevel', { cwd, default: 'mcp' }),
       'mcp',
+    );
+  });
+
+  it('providerOwnsShellOptIn covers both dialects and refuses the rung-less shapes', () => {
+    // json-hooks WITH the opt-in event.
+    const withEvent = {
+      id: 'j1',
+      activity: {
+        install: {
+          kind: 'json-hooks',
+          configPath: 'x.json',
+          events: [{ event: 'PreToolUse', matcher: '^Bash$', optIn: 'shell' }],
+        },
+        mapEvent: () => null,
+      },
+    } as unknown as IProvider;
+    assert.equal(providerOwnsShellOptIn(withEvent), true);
+    // json-hooks WITHOUT it (the base fixture provider).
+    assert.equal(providerOwnsShellOptIn(provider), false);
+    // plugin-file whose source parameterizes the {{SHELL_ON}} filter.
+    const pluginWithShell = {
+      id: 'p1',
+      activity: {
+        install: { kind: 'plugin-file', configPath: '.x/plugin/a.js' },
+        mapEvent: () => null,
+        pluginHooksSource: "if (input.tool === 'bash' && !{{SHELL_ON}}) return;",
+      },
+    } as unknown as IProvider;
+    assert.equal(providerOwnsShellOptIn(pluginWithShell), true);
+    // plugin-file without the placeholder: structurally rung-less.
+    const pluginPlain = {
+      id: 'p2',
+      activity: {
+        install: { kind: 'plugin-file', configPath: '.x/plugin/a.js' },
+        mapEvent: () => null,
+        pluginHooksSource: STUB_HOOKS_SOURCE,
+      },
+    } as unknown as IProvider;
+    assert.equal(providerOwnsShellOptIn(pluginPlain), false);
+    // No activity capability at all.
+    assert.equal(providerOwnsShellOptIn({ id: 'none' } as unknown as IProvider), false);
+  });
+
+  it('plugin-file render resolves {{SHELL_ON}} from the stored key on every (re)install', async () => {
+    const pluginProvider = {
+      id: 'opencode',
+      kind: 'provider',
+      activity: {
+        install: { kind: 'plugin-file', configPath: '.opencode/plugin/skill-map-activity.js' },
+        mapEvent: () => null,
+        pluginHooksSource: "      if (input && input.tool === 'bash' && !{{SHELL_ON}}) return;",
+      },
+    } as unknown as IProvider;
+    const pluginPath = join(cwd, '.opencode/plugin/skill-map-activity.js');
+    rmSync(join(cwd, '.opencode'), { recursive: true, force: true });
+
+    // Bare install: the filter renders CLOSED (bash never leaves the host).
+    await installActivityBridge(cwd, pluginProvider);
+    assert.ok(readFileSync(pluginPath, 'utf8').includes("input.tool === 'bash' && !false"));
+
+    // Opt in, re-install: the filter renders OPEN.
+    writeConfigValue('activity.shellCapture', true, { cwd, target: 'project-local' });
+    await installActivityBridge(cwd, pluginProvider);
+    assert.ok(readFileSync(pluginPath, 'utf8').includes("input.tool === 'bash' && !true"));
+
+    // Uninstall retires the key (the provider owns the rung), so a
+    // fresh install starts relocked.
+    uninstallActivityBridge(cwd, pluginProvider, [pluginProvider]);
+    assert.equal(
+      readConfigValue<boolean>('activity.shellCapture', { cwd, default: false }),
+      false,
     );
   });
 

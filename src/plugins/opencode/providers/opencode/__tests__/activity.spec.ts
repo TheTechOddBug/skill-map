@@ -49,6 +49,33 @@ describe('opencodeActivity.mapEvent', () => {
     assert.ok(source.includes("event.type === 'session.idle'"));
     // Every registration forwards through the envelope's forward().
     assert.ok(source.includes("await forward('tool.execute.before'"));
+    // Shell opt-in (plugin-file dialect, rung 5): the bash filter
+    // parameterizes on the render-time placeholder, which is also what
+    // marks the provider shell-capable.
+    assert.ok(source.includes("input.tool === 'bash' && !{{SHELL_ON}}"));
+  });
+
+  it('maps a bash command naming in-scope .md files to shell sightings (real 2026-08-18 capture)', () => {
+    const signals = opencodeActivity.mapEvent({
+      hook: 'tool.execute.before',
+      directory: DIR,
+      input: { tool: 'bash', sessionID: 'ses_bash1', callID: 'call_b1' },
+      output: { args: { command: "cat docs/notes.md && grep x 'docs/other.md' src/app.ts" } },
+    });
+    assert.deepEqual(signals, [
+      { path: 'docs/notes.md', phase: 'start', owner: 'ses_bash1', detail: 'bash', access: 'shell' },
+      { path: 'docs/other.md', phase: 'start', owner: 'ses_bash1', detail: 'bash', access: 'shell' },
+    ]);
+  });
+
+  it('a bash command naming no in-scope .md disclaims', () => {
+    const signals = opencodeActivity.mapEvent({
+      hook: 'tool.execute.before',
+      directory: DIR,
+      input: { tool: 'bash', sessionID: 'ses_bash2', callID: 'call_b2' },
+      output: { args: { command: 'ls -la && curl https://x.io/readme.md' } },
+    });
+    assert.equal(signals, null);
   });
 
   it('maps the skill tool to a NAMED skill start (prose-invoked, real capture)', () => {

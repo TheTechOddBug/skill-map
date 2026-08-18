@@ -75,35 +75,13 @@ function makeCmd(provider: string, shell: boolean | undefined): ActivityInstallC
 }
 
 describe('sm activity install --shell gate', () => {
-  it('refuses --shell for a provider without the opt-in event, persisting nothing', async () => {
-    const fixture = freshFixture('opencode-shell');
-    process.chdir(fixture);
+  // Every built-in activity provider owns the rung since 2026-08-18
+  // (opencode joined via the plugin-file dialect), so the refusal path
+  // is pinned at the engine level with synthetic providers
+  // (`core/activity/__tests__/install.spec.ts`, providerOwnsShellOptIn);
+  // this spec keeps the CLI-observable accept behaviour per dialect.
 
-    const cap = captureContext();
-    const cmd = makeCmd('opencode', true);
-    cmd.context = cap.context;
-    strictEqual(await cmd.execute(), 2);
-
-    const err = cap.stderr();
-    ok(err.includes('no shell capture rung'), 'refusal names the missing rung');
-    ok(err.includes('claude') && err.includes('codex') && err.includes('antigravity'), 'refusal lists the shell-capable providers');
-    // Nothing persisted, nothing installed: the gate fires first.
-    strictEqual(existsSync(join(fixture, '.skill-map', 'settings.local.json')), false);
-    strictEqual(existsSync(join(fixture, '.opencode', 'plugin', 'skill-map-activity.js')), false);
-  });
-
-  it('refuses --no-shell the same way (the pair belongs to the rung owners)', async () => {
-    const fixture = freshFixture('opencode-no-shell');
-    process.chdir(fixture);
-
-    const cap = captureContext();
-    const cmd = makeCmd('opencode', false);
-    cmd.context = cap.context;
-    strictEqual(await cmd.execute(), 2);
-    strictEqual(existsSync(join(fixture, '.opencode', 'plugin', 'skill-map-activity.js')), false);
-  });
-
-  it('a bare install of the same provider still proceeds (the gate is flag-scoped)', async () => {
+  it('a bare opencode install proceeds with the bash filter rendered CLOSED', async () => {
     const fixture = freshFixture('opencode-bare');
     process.chdir(fixture);
 
@@ -111,7 +89,30 @@ describe('sm activity install --shell gate', () => {
     const cmd = makeCmd('opencode', undefined);
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 0);
-    strictEqual(existsSync(join(fixture, '.opencode', 'plugin', 'skill-map-activity.js')), true);
+    const plugin = readFileSync(
+      join(fixture, '.opencode', 'plugin', 'skill-map-activity.js'),
+      'utf8',
+    );
+    ok(plugin.includes("input.tool === 'bash' && !false"), 'filter rendered closed');
+  });
+
+  it('opencode accepts --shell: key persisted, plugin re-rendered with the filter OPEN', async () => {
+    const fixture = freshFixture('opencode-shell-accepted');
+    process.chdir(fixture);
+
+    const cap = captureContext();
+    const cmd = makeCmd('opencode', true);
+    cmd.context = cap.context;
+    strictEqual(await cmd.execute(), 0);
+    const local = JSON.parse(
+      readFileSync(join(fixture, '.skill-map', 'settings.local.json'), 'utf8'),
+    ) as { activity?: { shellCapture?: boolean } };
+    strictEqual(local.activity?.shellCapture, true);
+    const plugin = readFileSync(
+      join(fixture, '.opencode', 'plugin', 'skill-map-activity.js'),
+      'utf8',
+    );
+    ok(plugin.includes("input.tool === 'bash' && !true"), 'filter rendered open');
   });
 
   it('codex accepts --shell now that its descriptor owns the rung (2026-08-18)', async () => {

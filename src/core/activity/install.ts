@@ -36,6 +36,7 @@ import { BRIDGE_PACKAGE_JSON, renderActivityBridge } from './bridge-template.js'
 import {
   ACTIVITY_PLUGIN_MARKER,
   ACTIVITY_PLUGIN_PACKAGE_JSON,
+  SHELL_ON_PLACEHOLDER,
   renderActivityPlugin,
 } from './plugin-template.js';
 import {
@@ -115,7 +116,19 @@ export async function installActivityBridge(cwd: string, provider: IProvider): P
     const pluginPath = join(cwd, install.configPath);
     const pluginDir = dirname(pluginPath);
     await mkdir(pluginDir, { recursive: true });
-    await writeFile(pluginPath, renderActivityPlugin(provider.id, hooksSource), 'utf8');
+    // Shell opt-in (spec Capture level rung 5, plugin-file dialect):
+    // the source's `{{SHELL_ON}}` placeholder resolves to the stored
+    // key, so the wiring-level filter it parameterizes keeps the shell
+    // tool's payloads inside the host process until the operator opts
+    // in. Reading the key HERE mirrors the json-hooks branch below: a
+    // bare re-install respects the stored choice.
+    const pluginShellOn =
+      readConfigValue<boolean>('activity.shellCapture', { cwd, default: false }) === true;
+    await writeFile(
+      pluginPath,
+      renderActivityPlugin(provider.id, hooksSource, pluginShellOn),
+      'utf8',
+    );
     // Pin the plugin dir to ESM so the vendor's loader parses our
     // `export`-based plugin correctly regardless of the host project's
     // module type (see `ACTIVITY_PLUGIN_PACKAGE_JSON`). Written only when
@@ -199,8 +212,10 @@ export function uninstallActivityBridge(
 }
 
 /**
- * Whether this Provider's install descriptor carries the shell opt-in
- * event (spec provider-activity.md, Capture level rung 5). The single
+ * Whether this Provider's install surface carries the shell opt-in
+ * (spec provider-activity.md, Capture level rung 5): a `json-hooks`
+ * descriptor with an `optIn: 'shell'` event, or a `plugin-file` hook
+ * source parameterizing the `{{SHELL_ON}}` wiring filter. The single
  * predicate behind every shell-rung surface: the opt-in WRITERS (the
  * CLI `--shell`/`--no-shell` pair, the BFF `shellCapture` body field)
  * refuse a provider without it, so `activity.shellCapture` can only
@@ -208,12 +223,12 @@ export function uninstallActivityBridge(
  * knows how to retire it.
  */
 export function providerOwnsShellOptIn(provider: IProvider): boolean {
-  const install = provider.activity?.install;
-  return (
-    install !== undefined &&
-    install.kind === 'json-hooks' &&
-    (install.events ?? []).some((event) => event.optIn === 'shell')
-  );
+  const activity = provider.activity;
+  if (activity === undefined) return false;
+  if (activity.install.kind === 'json-hooks') {
+    return (activity.install.events ?? []).some((event) => event.optIn === 'shell');
+  }
+  return activity.pluginHooksSource?.includes(SHELL_ON_PLACEHOLDER) === true;
 }
 
 /**

@@ -63,6 +63,7 @@ import type {
 import {
   nonEmptyString,
   relativizeMarkdownPath,
+  shellCommandMarkdownPaths,
 } from '../../../../kernel/util/activity-adapter.js';
 import { mcpNodePath } from '../../../../kernel/util/mcp.js';
 
@@ -83,8 +84,19 @@ import { mcpNodePath } from '../../../../kernel/util/mcp.js';
  * FILTERED to `session.idle` (the native owner release). Filtering by tool / event TYPE is wiring, not
  * mapping: it is what keeps the firehose bus (catalog / registry noise,
  * every other tool's output) from ever leaving the host process.
+ *
+ * The `{{SHELL_ON}}` placeholder (resolved at install render,
+ * `core/activity/plugin-template.ts`) is the plugin-file dialect of the
+ * shell opt-in (spec Capture level rung 5): it parameterizes a
+ * wiring-level filter so `bash` command lines never leave the host
+ * process until the operator opts in (`sm activity install opencode
+ * --shell` re-renders the plugin), and its presence in this source is
+ * what `providerOwnsShellOptIn` derives the capability from.
  */
 const PLUGIN_HOOKS_SOURCE = `    'tool.execute.before': async (input, output) => {
+      // Shell opt-in (rendered at install, spec Capture level rung 5):
+      // without it, bash command lines never leave the host process.
+      if (input && input.tool === 'bash' && !{{SHELL_ON}}) return;
       await forward('tool.execute.before', { input, output });
     },
     'tool.execute.after': async (input, output) => {
@@ -186,7 +198,40 @@ function mapToolCall(wrapper: Record<string, unknown>): IActivitySignal[] | null
   if (input['tool'] === 'task') {
     return mapTaskSpawn(input, args);
   }
+  if (input['tool'] === 'bash') {
+    return mapBashUsage(wrapper, input, args);
+  }
   return mapMcpToolCall(input);
+}
+
+/**
+ * `bash` → shell sightings (opt-in, spec Capture level rung 5): the
+ * command rides `args.command` (live-verified 2026-08-18, opencode
+ * 1.18.9) and only ever reaches this mapper when the generated
+ * plugin's wiring filter was rendered with the shell opt-in ON (the
+ * plugin-file dialect of the opt-in event: without the key, bash
+ * payloads never leave the host process). `.md` tokens resolve and
+ * contain against the plugin context's `directory`, the same root the
+ * markdown mapping uses; the command text never leaves the parser.
+ */
+function mapBashUsage(
+  wrapper: Record<string, unknown>,
+  input: Record<string, unknown>,
+  args: Record<string, unknown>,
+): IActivitySignal[] | null {
+  const command = nonEmptyString(args['command']);
+  const root = nonEmptyString(wrapper['directory']);
+  if (!command || !root) return null;
+  const paths = shellCommandMarkdownPaths(command, root, [root]);
+  if (paths.length === 0) return null;
+  const owner = ownerOf(input);
+  return paths.map((path) => ({
+    path,
+    phase: 'start' as const,
+    owner,
+    detail: 'bash',
+    access: 'shell' as const,
+  }));
 }
 
 /**

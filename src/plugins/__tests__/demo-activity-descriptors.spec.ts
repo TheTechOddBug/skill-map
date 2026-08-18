@@ -22,6 +22,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { providerOwnsShellOptIn } from '../../core/activity/install.js';
 import { builtIns } from '../built-ins.js';
 
 const STATIC_DATA_SOURCE = resolve(
@@ -63,7 +64,9 @@ describe('demo activity descriptors mirror', () => {
       expected[provider.id] = {
         configPath: install.configPath,
         events: events.filter((event) => event.optIn === undefined).length,
-        shellOptIn: events.some((event) => event.optIn === 'shell'),
+        // The REAL predicate (covers the plugin-file {{SHELL_ON}} dialect
+        // too), so the mirror can never disagree with the BFF envelope.
+        shellOptIn: providerOwnsShellOptIn(provider),
       };
     }
     // Anti-vacuity: an extraction that finds almost nothing must fail
