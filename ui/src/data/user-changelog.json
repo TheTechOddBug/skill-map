@@ -2,6 +2,61 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.12.1",
+      "date": "2026-08-18",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "On Antigravity, file edits now light the map as writes, and shell capture is available: opt in with `sm activity install antigravity --shell`, pick the Shell level, and .md files named in terminal commands show up in recordings.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "On Codex, file edits now light the map and count as writes in recordings (Codex added hook support for its patch tool). Note: Codex 0.147 asks you to trust hooks via /hooks before any events flow.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Shell capture now works on Codex too: opt in with `sm activity install codex --shell`, pick the Shell level, and .md files named in shell commands light the map, which also catches docs Codex reads via cat or sed.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Selecting a node on the map now also highlights its file in the Files panel by default; use the directions icon in the panel header to turn it off.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The shell capture instructions in Settings now follow your active lens: they show the command for the provider you are actually using, and tell you when that provider has no shell capture instead of suggesting a Claude command.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Shell capture now works on OpenCode too: opt in with `sm activity install opencode --shell`, pick the Shell level, and .md files named in shell commands light the map. Without the opt-in, command lines now never leave the OpenCode process at all.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Paths mentioned in shell commands no longer count as node executions (they still appear in the recent activity log), and the shell capture opt-in is only accepted for providers that support it (Claude today).",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.12.0",
       "date": "2026-08-17",
       "kind": "user-facing",
