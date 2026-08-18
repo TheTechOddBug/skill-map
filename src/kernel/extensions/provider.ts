@@ -591,7 +591,7 @@ export interface IActivitySignal {
    * Adapter-declared access class for a PATH signal (spec
    * `provider-activity.md` field list, 2026-08-17): `'write'` when the
    * vendor tool wrote / edited the file (Claude `Write` / `Edit`,
-   * Antigravity `write_to_file`, ...). Omit for reads; the resolver
+   * opencode `write` / `edit`, Codex `apply_patch`, ...). Omit for reads; the resolver
    * defaults any unstamped non-`mcp://` path signal to `"read"` and
    * derives `"mcp"` from the path prefix regardless. Ignored on NAME
    * signals (a unit's own execution carries no access class).

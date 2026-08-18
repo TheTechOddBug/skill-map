@@ -41,6 +41,7 @@ import {
   activityInstallStatus,
   demoteShellCaptureLevel,
   installActivityBridge,
+  providerOwnsShellOptIn,
   uninstallActivityBridge,
 } from '../../core/activity/install.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
@@ -61,6 +62,13 @@ export interface IActivityInstallStatusEnvelope {
   bridgePresent: boolean;
   /** How many hook events the descriptor wires. */
   events: number;
+  /**
+   * The descriptor carries the shell opt-in event (spec
+   * provider-activity.md, Capture level rung 5): the `--shell` /
+   * `shellCapture` writers accept this provider, and the UI conditions
+   * its shell-unlock affordances on it instead of hardcoding a list.
+   */
+  shellOptIn: boolean;
 }
 
 interface IInstallBody {
@@ -71,7 +79,8 @@ interface IInstallBody {
    * Shell-rung opt-in mirror of the CLI `--shell`/`--no-shell` pair
    * (spec provider-activity.md, Capture level rung 5): present persists
    * `activity.shellCapture` before rendering; absent respects the
-   * stored choice.
+   * stored choice. Refused (400) for a provider whose descriptor
+   * carries no shell opt-in event, mirroring the CLI refusal.
    */
   shellCapture?: boolean;
 }
@@ -110,6 +119,18 @@ export function registerActivityInstallRoutes(app: Hono, deps: IRouteDeps): void
     const body = await parseInstallBody(c.req.raw);
     const provider = requireSupported(deps, body.provider);
     requireConsent(body, provider, SERVER_TEXTS.activityInstallConfirmRequired);
+    // Shell opt-in gate (mirrors the CLI --shell refusal): the field
+    // only means something on a provider whose descriptor owns the
+    // opt-in event; persisting the key from any other provider would
+    // unlock the ladder's shell selector with no capture wired behind
+    // it, and that provider's uninstall would never retire it.
+    if (body.shellCapture !== undefined && !providerOwnsShellOptIn(provider)) {
+      throw new HTTPException(400, {
+        message: tx(SERVER_TEXTS.activityInstallShellNotSupported, {
+          provider: sanitizeForTerminal(provider.id),
+        }),
+      });
+    }
     try {
       if (body.shellCapture !== undefined) {
         writeConfigValue('activity.shellCapture', body.shellCapture, {
@@ -218,6 +239,7 @@ function buildStatusEnvelope(
       configWired: false,
       bridgePresent: false,
       events: 0,
+      shellOptIn: false,
     };
   }
   const install = provider.activity!.install;
@@ -241,5 +263,6 @@ function buildStatusEnvelope(
     configWired: status.configWired,
     bridgePresent: status.bridgePresent,
     events: renderable.length,
+    shellOptIn: providerOwnsShellOptIn(provider),
   };
 }

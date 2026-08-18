@@ -43,6 +43,24 @@ export class ActivityReadinessService {
    */
   readonly hookInstalled = this._hookInstalled.asReadonly();
 
+  private readonly _lensId = signal<string | null>(null);
+  /**
+   * Active lens id as the probe saw it, `null` until the first probe
+   * resolves (or when it failed). Carried so lens-conditioned copy
+   * (the Settings shell-unlock command) can name the CURRENT provider
+   * instead of hardcoding one.
+   */
+  readonly lensId = this._lensId.asReadonly();
+
+  private readonly _shellOptIn = signal<boolean | null>(null);
+  /**
+   * Whether the active lens's provider descriptor carries the shell
+   * opt-in event (`shellOptIn` on the install-status envelope, spec
+   * §Capture level rung 5). `null` = unknown; consumers hide the
+   * shell-unlock affordance rather than naming a wrong provider.
+   */
+  readonly shellOptIn = this._shellOptIn.asReadonly();
+
   /** Single in-flight probe; concurrent refreshes await the same one. */
   private inFlight: Promise<void> | null = null;
 
@@ -75,10 +93,14 @@ export class ActivityReadinessService {
       const lens = await this.dataSource.getActiveProvider();
       const status = await this.dataSource.getActivityInstallStatus(lens.activeProvider);
       this._hookInstalled.set(status.supported ? status.installed : false);
+      this._lensId.set(lens.activeProvider);
+      this._shellOptIn.set(status.shellOptIn === true);
     } catch {
       // Unknown, NOT locked: any failure (transport, demo quirks)
       // resolves to null so the gate fails open.
       this._hookInstalled.set(null);
+      this._lensId.set(null);
+      this._shellOptIn.set(null);
     }
   }
 }

@@ -35,6 +35,7 @@ import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type { IActiveProviderApi } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { ProviderRegistryService } from '../../../services/provider-registry';
+import { ActivityReadinessService } from '../../services/activity-readiness';
 import { UsageTrackerService } from '../../services/usage-tracker';
 import { formatErr } from './settings-project.utils';
 
@@ -50,6 +51,7 @@ export class SettingsProjectLens {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly confirmation = inject(ConfirmationService);
   private readonly providerRegistry = inject(ProviderRegistryService);
+  private readonly activityReadiness = inject(ActivityReadinessService);
   private readonly usageTracker = inject(UsageTrackerService);
 
   readonly visible = input.required<boolean>();
@@ -222,6 +224,10 @@ export class SettingsProjectLens {
       this.activeProviderSwitchAnnouncement.set(
         this.texts.project.activeProviderSwitched(entry?.label ?? envelope.activeProvider),
       );
+      // Lens-conditioned surfaces elsewhere in the section (the hook
+      // row probes itself; the capture row's shell-unlock copy reads
+      // the shared readiness probe) follow the NEW lens immediately.
+      void this.activityReadiness.refresh();
     } catch (err) {
       this.activeProviderSaveError.set(formatErr(err));
       this.activeProviderView.set(this.activeProviderValue());

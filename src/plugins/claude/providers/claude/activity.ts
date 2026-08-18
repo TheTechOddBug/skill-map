@@ -59,6 +59,7 @@ import type {
 } from '../../../../kernel/extensions/index.js';
 import {
   mapMcpInvocation,
+  mapShellInvocation,
   mapSubagentBoundary,
   nonEmptyString,
   relativizeMarkdownPath,
@@ -199,71 +200,15 @@ function mapPreToolUse(event: Record<string, unknown>): IActivitySignal[] | null
     return mapSpawnCustodyStart(event);
   }
   if (toolName === 'Bash') {
-    return mapShellUsage(event, input);
+    // Shell rung (spec Capture level rung 5): the shared
+    // claude-convention mapper (also codex since 2026-08-18); the
+    // command text never leaves the parser. URL remnants (the token
+    // regex cannot cross the `:` in `https://`, so a URL surfaces as
+    // its `//host/...` tail) fall out as absolute paths outside the
+    // root.
+    return mapShellInvocation(event);
   }
   return mapMcpInvocation(event);
-}
-
-/** Path tokens a shell command may name; quotes handled by stripping. */
-const SHELL_MD_TOKEN = /[A-Za-z0-9_.~/-]+\.md\b/g;
-
-/** Bound the heuristic: a monster one-liner yields at most this many signals. */
-const SHELL_MAX_PATHS = 5;
-
-/**
- * Shell rung (spec provider-activity.md, Capture level rung 5):
- * HEURISTIC path sightings parsed out of `tool_input.command`. The
- * command text NEVER leaves this function: `.md`-shaped tokens are
- * extracted (quotes stripped, URL-shaped tokens skipped), relativized
- * like every other markdown usage, deduped and capped; each survivor
- * becomes a PATH signal with `access: 'shell'` and `detail: 'Bash'`
- * (the tool name, not the command). Unresolvable paths drop at the
- * resolver as usual. A command naming no in-scope `.md` disclaims.
- */
-function mapShellUsage(
-  event: Record<string, unknown>,
-  input: Record<string, unknown>,
-): IActivitySignal[] | null {
-  const command = input['command'];
-  if (typeof command !== 'string' || command.length === 0) return null;
-  const paths = shellMarkdownPaths(command, event['cwd']);
-  if (paths.length === 0) return null;
-  const owner = sessionizedOwner(event);
-  return paths.map((path) => ({
-    path,
-    phase: 'start' as const,
-    owner,
-    detail: 'Bash',
-    access: 'shell' as const,
-  }));
-}
-
-/** Extract, relativize, dedupe and cap the command's `.md` tokens. */
-function shellMarkdownPaths(command: string, cwd: unknown): string[] {
-  const root = typeof cwd === 'string' && cwd.length > 0 ? cwd : null;
-  if (root === null) return [];
-  const tokens = command.replace(/['"]/g, ' ').match(SHELL_MD_TOKEN) ?? [];
-  const seen = new Set<string>(
-    tokens.map((token) => shellTokenScopePath(token, root)).filter((path) => path !== null),
-  );
-  return [...seen].slice(0, SHELL_MAX_PATHS);
-}
-
-/**
- * Scope-relative form of one shell token, or `null`. Absolute tokens
- * relativize against the session cwd like any file-tool path; bare
- * relative tokens (the common shell spelling, `cat docs/x.md`) resolve
- * against the same cwd first. Home-anchored tokens can never name a
- * scanned node, so they drop here; URL remnants (the regex cannot cross
- * the `:` in `https://`, so a URL surfaces as its `//host/...` tail)
- * fall out as absolute paths outside the root.
- */
-function shellTokenScopePath(token: string, root: string): string | null {
-  if (token.startsWith('~')) return null;
-  const absolute = token.startsWith('/')
-    ? token
-    : `${root}/${token.startsWith('./') ? token.slice(2) : token}`;
-  return relativizeMarkdownPath(absolute, [root]);
 }
 
 /**

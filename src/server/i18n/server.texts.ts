@@ -278,6 +278,8 @@ export const SERVER_TEXTS = {
     'Activity hook uninstall failed: {{message}}',
   activityInstallConfirmNotBoolean:
     '`confirm` must be a boolean when present.',
+  activityInstallShellNotSupported:
+    'Provider "{{provider}}" declares no shell capture rung; `shellCapture` applies only to providers with the shell opt-in event.',
 
   // Agent process skill install management (GET/POST /api/agent/install +
   // POST /api/agent/uninstall, see spec/cli-contract.md §Agent process

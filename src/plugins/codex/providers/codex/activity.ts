@@ -43,19 +43,43 @@
  *   `last_assistant_message` (the generic report path) is the
  *   response source.
  * - **MCP usage**: a `PreToolUse` for an `mcp__<server>__<tool>` call
- *   (the matcher is widened to `^(spawn_agent|mcp__.+)$`) emits a PATH
+ *   (carried by the same widened PreToolUse matcher) emits a PATH
  *   signal to the `mcp://<server>` node via the shared `mapMcpInvocation`.
  *   Codex reports the SAME `mcp__<server>__<tool>` identifier claude does
  *   (it force-prefixes the hook name, `codex-rs/.../tools/handlers/mcp.rs`),
  *   so a live call lights the very node `core/mcp-tools` and `mcpConfig`
  *   already drew. Deterministic, no inference; no end signal (UI decay
  *   owns the span, like a skill), so only PreToolUse is widened.
+ * - **Markdown writes via `apply_patch`** (upstream shipped its hook
+ *   events in openai/codex#18391; live-verified 2026-08-18 against
+ *   codex 0.147): the PreToolUse matcher includes `apply_patch`, whose
+ *   `tool_input.command` carries the patch envelope. The patch grammar
+ *   NAMES its targets (`*** Add File:` / `*** Update File:` header
+ *   lines), so extraction is deterministic, no inference: each header
+ *   path resolves against the event `cwd`, `.md` targets inside the
+ *   scope root survive (shared `scopeRelativeMarkdownPath`), deduped,
+ *   capped, one PATH signal each with `detail: 'apply_patch'` and
+ *   `access: 'write'`. `*** Delete File:` is skipped on purpose
+ *   (lighting a node the patch is about to remove is noise) and a
+ *   `*** Move to:` rename lights only the old path (the new one
+ *   resolves after the next scan).
+ * - **Shell rung (opt-in)**: codex 0.147 reports its shell tool as
+ *   `Bash` with the claude payload shape (`tool_input.command` + `cwd`,
+ *   live-verified 2026-08-18), so the shared `mapShellInvocation`
+ *   applies verbatim behind the same double opt-in as claude
+ *   (`sm activity install codex --shell` renders the extra matcher;
+ *   the capture-level `shell` selector is the second half).
  * - **No markdown-read signals**: Codex HAS an internal `read_file`
  *   tool but its hooks do not fire for it (PreToolUse covers Bash /
- *   apply_patch / MCP; expanding it to `read_file` is an open upstream
- *   request, openai/codex#18491). Deliberately disclaimed until the hook
- *   surface exists; when it lands, this maps like claude's filter-first
- *   `Read` handling.
+ *   apply_patch / MCP, not `read_file`; expansion is an open upstream
+ *   request, openai/codex#18491, re-verified open 2026-08-18).
+ *   Deliberately disclaimed until the hook surface exists; when it
+ *   lands, this maps like claude's filter-first `Read` handling.
+ *
+ * Operational note (codex 0.147): hooks demand explicit TRUST (the
+ * `/hooks` review flow in the codex TUI, recorded per hook hash), so a
+ * freshly installed bridge fires nothing until the operator trusts it;
+ * `sm activity status --verify` is the surface that exposes the gap.
  *
  * Attribution: `owner` is `agent_id` when present, else the SESSIONIZED
  * main key (`main:<session_id>`, bare `main` for payloads with no
@@ -70,8 +94,10 @@ import type {
 } from '../../../../kernel/extensions/index.js';
 import {
   mapMcpInvocation,
+  mapShellInvocation,
   mapSubagentBoundary,
   nonEmptyString,
+  scopeRelativeMarkdownPath,
   sessionizedOwner,
   toolInputOf,
 } from '../../../../kernel/util/activity-adapter.js';
@@ -87,7 +113,12 @@ export const codexActivity: IProviderActivityAdapter = {
     // Bash / apply_patch / MCP traffic.
     events: [
       { event: 'UserPromptSubmit' },
-      { event: 'PreToolUse', matcher: '^(spawn_agent|mcp__.+)$' },
+      { event: 'PreToolUse', matcher: '^(spawn_agent|apply_patch|mcp__.+)$' },
+      // Shell rung opt-in (spec Capture level rung 5): rendered only
+      // while `activity.shellCapture` is on. Codex 0.147 reports its
+      // shell tool as `Bash` with the claude payload shape
+      // (live-verified 2026-08-18), so the shared mapper applies.
+      { event: 'PreToolUse', matcher: '^Bash$', optIn: 'shell' },
       { event: 'PostToolUse', matcher: '^spawn_agent$' },
       { event: 'SubagentStart' },
       { event: 'SubagentStop' },
@@ -176,7 +207,51 @@ function mapPromptSkills(event: Record<string, unknown>): IActivitySignal[] | nu
  */
 function mapPreToolUse(event: Record<string, unknown>): IActivitySignal[] | null {
   if (event['tool_name'] === 'spawn_agent') return mapSpawnRelation(event, 'start');
+  if (event['tool_name'] === 'apply_patch') return mapApplyPatchWrites(event);
+  // Shell rung (opt-in, see the descriptor): the shared
+  // claude-convention mapper, codex reports the identical
+  // `Bash` + `tool_input.command` + `cwd` shape.
+  if (event['tool_name'] === 'Bash') return mapShellInvocation(event);
   return mapMcpInvocation(event);
+}
+
+/**
+ * `*** Add File:` / `*** Update File:` header of the apply_patch
+ * envelope; the captured group is the target path, verbatim. Delete
+ * headers are deliberately not matched (see the module doc) and a
+ * `*** Move to:` line never matches either (only the old path lights).
+ */
+const PATCH_TARGET_HEADER = /^\*\*\* (?:Add|Update) File: (.+)$/gm;
+
+/** Bound on lit paths per patch, mirroring the claude shell cap. */
+const PATCH_MAX_PATHS = 5;
+
+/**
+ * `apply_patch` -> one write PATH signal per `.md` target the patch
+ * names (module doc: deterministic extraction from the envelope's
+ * header lines, resolved against the event `cwd`, deduped, capped).
+ * Codex has no end signal for the tool (like MCP calls), so only the
+ * PreToolUse side maps; the UI decay owns the span.
+ */
+function mapApplyPatchWrites(event: Record<string, unknown>): IActivitySignal[] | null {
+  const command = nonEmptyString(toolInputOf(event)['command']);
+  if (!command) return null;
+  const owner = sessionizedOwner(event);
+  const seen = new Set<string>();
+  for (const match of command.matchAll(PATCH_TARGET_HEADER)) {
+    const path = scopeRelativeMarkdownPath(match[1]!.trim(), event['cwd']);
+    if (path !== null) seen.add(path);
+  }
+  const signals: IActivitySignal[] = [...seen]
+    .slice(0, PATCH_MAX_PATHS)
+    .map((path) => ({
+      path,
+      phase: 'start' as const,
+      owner,
+      detail: 'apply_patch',
+      access: 'write' as const,
+    }));
+  return signals.length > 0 ? signals : null;
 }
 
 /**

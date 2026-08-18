@@ -115,6 +115,45 @@ describe('ActivityStatsService.record', () => {
     assert.equal(stats.nodeDetail('mcp://notion').recent[0]?.caller, undefined);
   });
 
+  it('a shell SIGHTING never counts as an execution (spec §Capture level rung 5)', () => {
+    const stats = new ActivityStatsService();
+    const skill = '.claude/skills/demo/SKILL.md';
+    const file = 'docs/notes.md';
+    stats.record({ nodePath: skill, phase: 'start', owner: 'main:s1' });
+    const enriched = stats.record({
+      nodePath: file,
+      phase: 'start',
+      owner: 'main:s1',
+      detail: 'Bash',
+      access: 'shell',
+    });
+    // No stats enrichment on the frame (like keepAlive custody)...
+    assert.equal(enriched, null);
+    // ...and no execution stat mutates: count, lastStartAt, owners all zero.
+    const detail = stats.nodeDetail(file);
+    assert.equal(detail.stats.count, 0);
+    assert.equal(detail.stats.lastStartAt, 0);
+    assert.equal(detail.stats.distinctOwners, 0);
+    // The typed recent log still carries the sighting on BOTH ends.
+    assert.equal(detail.recent[0]?.kind, 'shell');
+    assert.equal(detail.recent[0]?.detail, 'Bash');
+    assert.equal(detail.recent[0]?.caller, skill);
+    const mirrored = stats.nodeDetail(skill).recent.find((e) => e.target === file);
+    assert.equal(mirrored?.kind, 'shell');
+    assert.equal(mirrored?.detail, 'Bash');
+  });
+
+  it('a shell sighting never becomes a future caller for later accesses', () => {
+    const stats = new ActivityStatsService();
+    const file = 'docs/notes.md';
+    // Sighting with no unit lit under the owner: nothing to attribute...
+    stats.record({ nodePath: file, phase: 'start', owner: 'main:s1', detail: 'Bash', access: 'shell' });
+    assert.equal(stats.nodeDetail(file).recent[0]?.caller, undefined);
+    // ...and the sighted file must NOT register as the owner's unit.
+    stats.record({ nodePath: 'mcp://notion', phase: 'start', owner: 'main:s1', detail: 'notion-search', access: 'mcp' });
+    assert.equal(stats.nodeDetail('mcp://notion').recent[0]?.caller, undefined);
+  });
+
   it('dedupes sticky starts per (nodePath, owner) pair', () => {
     const stats = new ActivityStatsService();
     const first = stats.record({ nodePath: NODE, phase: 'start', owner: 'a1', sticky: true });

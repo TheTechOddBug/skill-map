@@ -41,6 +41,7 @@ describe('SettingsProjectRealtime recording row', () => {
     journalSessions: number,
     shellCapture = false,
     hookInstalled: boolean | null = true,
+    lens: { id: string | null; shellOptIn: boolean | null } = { id: 'claude', shellOptIn: true },
   ): Promise<import('@angular/core/testing').ComponentFixture<Host>> {
     getSessionJournal = vi
       .fn()
@@ -60,6 +61,8 @@ describe('SettingsProjectRealtime recording row', () => {
           provide: ActivityReadinessService,
           useValue: {
             hookInstalled: signal(hookInstalled).asReadonly(),
+            lensId: signal(lens.id).asReadonly(),
+            shellOptIn: signal(lens.shellOptIn).asReadonly(),
             refresh: vi.fn().mockResolvedValue(undefined),
           } as unknown as ActivityReadinessService,
         },
@@ -142,6 +145,28 @@ describe('SettingsProjectRealtime recording row', () => {
     expect(query('settings-project-shell-unlock-command')?.textContent?.trim()).toBe(
       'sm activity install claude --shell',
     );
+  });
+
+  it('the unlock command names the ACTIVE lens, not a hardcoded provider', async () => {
+    await mount(0, false, true, { id: 'my-fork', shellOptIn: true });
+    expect(query('settings-project-shell-unlock-command')?.textContent?.trim()).toBe(
+      'sm activity install my-fork --shell',
+    );
+  });
+
+  it('a lens without the shell opt-in event gets the unavailable line, no command, no copy', async () => {
+    await mount(0, false, true, { id: 'codex', shellOptIn: false });
+    expect(query('settings-project-shell-unlock-hint')?.textContent).toContain(
+      'codex runtime exposes no shell hook',
+    );
+    expect(query('settings-project-shell-unlock-command')).toBeNull();
+    expect(query('settings-project-shell-unlock-copy')).toBeNull();
+  });
+
+  it('an unresolved lens probe renders no unlock line at all (never a wrong provider)', async () => {
+    await mount(0, false, true, { id: null, shellOptIn: null });
+    expect(query('settings-project-shell-unlock-hint')).toBeNull();
+    expect(query('settings-project-shell-unlock-command')).toBeNull();
   });
 
   it('the confirmed delete purges both memories and zeroes the journal half optimistically', async () => {

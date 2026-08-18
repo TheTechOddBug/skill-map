@@ -135,6 +135,71 @@ export function relativizeMarkdownPath(absolutePath: unknown, roots: unknown): s
   return null;
 }
 
+/** Path tokens a shell command may name; quotes handled by stripping. */
+const SHELL_MD_TOKEN = /[A-Za-z0-9_.~/-]+\.md\b/g;
+
+/** Bound the heuristic: a monster one-liner yields at most this many signals. */
+export const SHELL_MAX_PATHS = 5;
+
+/**
+ * Shell rung mapper (spec provider-activity.md, Capture level rung 5),
+ * shared by every claude-convention runtime whose shell tool reports
+ * as `Bash` with the command in `tool_input.command` (claude from day
+ * one; codex live-verified 2026-08-18 on 0.147): HEURISTIC path
+ * sightings parsed out of the command. The command text NEVER leaves
+ * this function: `.md`-shaped tokens are extracted (quotes stripped,
+ * URL-shaped tokens skipped), relativized like every other markdown
+ * usage, deduped and capped; each survivor becomes a PATH signal with
+ * `access: 'shell'` and `detail: 'Bash'` (the tool name, not the
+ * command). Unresolvable paths drop at the resolver as usual. A
+ * command naming no in-scope `.md` disclaims.
+ */
+export function mapShellInvocation(event: Record<string, unknown>): IActivitySignal[] | null {
+  const command = toolInputOf(event)['command'];
+  if (typeof command !== 'string' || command.length === 0) return null;
+  const paths = shellMarkdownPaths(command, event['cwd']);
+  if (paths.length === 0) return null;
+  const owner = sessionizedOwner(event);
+  return paths.map((path) => ({
+    path,
+    phase: 'start' as const,
+    owner,
+    detail: 'Bash',
+    access: 'shell' as const,
+  }));
+}
+
+/** Extract, relativize, dedupe and cap the command's `.md` tokens. */
+function shellMarkdownPaths(command: string, cwd: unknown): string[] {
+  const root = typeof cwd === 'string' && cwd.length > 0 ? cwd : null;
+  if (root === null) return [];
+  const tokens = command.replace(/['"]/g, ' ').match(SHELL_MD_TOKEN) ?? [];
+  const seen = new Set<string>(
+    tokens.map((token) => scopeRelativeMarkdownPath(token, root)).filter((path) => path !== null),
+  );
+  return [...seen].slice(0, SHELL_MAX_PATHS);
+}
+
+/**
+ * Scope-relative form of one path TOKEN that may be absolute or
+ * cwd-relative (a shell token, a patch-header target), or `null` when
+ * it is not a scope-contained `.md` path. Home-anchored tokens (`~`)
+ * are refused (never expanded); relative tokens resolve against
+ * `root`. Promoted from the claude shell mapping (2026-08-18) when the
+ * codex `apply_patch` write mapping needed the identical resolution.
+ * Containment is the same string-prefix check as
+ * `relativizeMarkdownPath`: a `..`-bearing survivor simply matches no
+ * scanned `node.path` and drops at the resolver.
+ */
+export function scopeRelativeMarkdownPath(token: string, root: unknown): string | null {
+  const cwd = nonEmptyString(root);
+  if (!cwd || token.startsWith('~')) return null;
+  const absolute = token.startsWith('/')
+    ? token
+    : `${cwd}/${token.startsWith('./') ? token.slice(2) : token}`;
+  return relativizeMarkdownPath(absolute, [cwd]);
+}
+
 /** `filePath` relative to `root` when non-trivially inside it, else `null`. */
 function relativeToRoot(filePath: string, root: unknown): string | null {
   if (typeof root !== 'string' || root.length === 0) return null;

@@ -112,16 +112,41 @@ export class SettingsProjectRealtime {
   /**
    * Shell unlock line: the install-side half of the double opt-in runs
    * in the terminal, so the row shows the exact command with a Copy
-   * button (the MCP registration row's dialect). Never hidden: once the
-   * opt-in is on it flips to the `--no-shell` way back out (an absent
-   * line read as a bug in the field, 2026-08-17).
+   * button (the MCP registration row's dialect). Never hidden while
+   * the lens supports the rung: once the opt-in is on it flips to the
+   * `--no-shell` way back out (an absent line read as a bug in the
+   * field, 2026-08-17). LENS-CONDITIONED (user report 2026-08-18: the
+   * command hardcoded claude): the provider id and its shell
+   * capability come from the shared readiness probe; a lens whose
+   * provider declares no shell opt-in event renders the `unavailable`
+   * line instead, and an unresolved probe renders nothing rather than
+   * naming a wrong provider.
    */
+  protected readonly shellUnlockHint = computed<string | null>(() => {
+    const lens = this.activityReadiness.lensId();
+    const optIn = this.activityReadiness.shellOptIn();
+    if (lens === null || lens === '' || optIn === null) return null;
+    if (!optIn) return this.captureLevelTexts.shellUnlock.unavailable(lens);
+    return this.captureLevelSvc.shellCapture()
+      ? this.captureLevelTexts.shellUnlock.hintOn
+      : this.captureLevelTexts.shellUnlock.hint(lens);
+  });
+
+  /** The copyable opt-in command, `null` when the lens has no shell rung. */
+  protected readonly shellUnlockCommand = computed<string | null>(() => {
+    const lens = this.activityReadiness.lensId();
+    if (lens === null || lens === '' || this.activityReadiness.shellOptIn() !== true) return null;
+    return this.captureLevelTexts.shellUnlock.command(lens);
+  });
+
   protected readonly shellCommandCopied = signal(false);
 
   protected async onCopyShellCommand(): Promise<void> {
+    const command = this.shellUnlockCommand();
+    if (command === null) return;
     this.usageTracker.trackFeature('shell-optin-copy', undefined, 'settings');
     try {
-      await navigator.clipboard.writeText(this.captureLevelTexts.shellUnlock.command);
+      await navigator.clipboard.writeText(command);
       this.shellCommandCopied.set(true);
       setTimeout(() => this.shellCommandCopied.set(false), 2000);
     } catch {

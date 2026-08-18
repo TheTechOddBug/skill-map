@@ -18,7 +18,16 @@
             "command": "node .skill-map/activity/bridge.js codex"
           }
         ],
-        "matcher": "^(spawn_agent|mcp__.+)$"
+        "matcher": "^(spawn_agent|apply_patch|mcp__.+)$"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .skill-map/activity/bridge.js codex"
+          }
+        ],
+        "matcher": "^Bash$"
       }
     ],
     "PostToolUse": [

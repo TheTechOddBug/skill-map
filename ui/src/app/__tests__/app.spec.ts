@@ -260,6 +260,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     configWired: false,
     bridgePresent: false,
     events: 0,
+    shellOptIn: false,
   }),
   installActivityHook: () => Promise.resolve({
     provider: 'markdown',
@@ -269,6 +270,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     configWired: false,
     bridgePresent: false,
     events: 0,
+    shellOptIn: false,
   }),
   uninstallActivityHook: () => Promise.resolve({ ...{
     provider: 'markdown',
@@ -278,6 +280,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     configWired: false,
     bridgePresent: false,
     events: 0,
+    shellOptIn: false,
   }, removed: false }),
   getAgentSkillInstallStatus: () => Promise.resolve({
     provider: 'markdown',

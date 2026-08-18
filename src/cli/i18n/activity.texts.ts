@@ -10,6 +10,13 @@ export const ACTIVITY_TEXTS = {
   unknownProviderHint:
     'Providers with an activity adapter today: {{providers}}.',
 
+  // --shell / --no-shell on a provider whose descriptor carries no
+  // shell opt-in event (spec provider-activity.md, Capture level rung
+  // 5): the flag pair is refused so the key can never unlock the shell
+  // selector with no capture wired behind it.
+  shellNotSupported:
+    '{{glyph}}  sm activity: provider "{{provider}}" declares no shell capture rung; --shell/--no-shell apply only to: {{providers}}.\n',
+
   // Consent prompt (TTY). Names the exact file the merge will modify so
   // the operator approves a concrete change, not an abstract feature.
   installConfirm:

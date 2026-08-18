@@ -28,12 +28,125 @@ describe('codexActivity.mapEvent', () => {
     assert.equal(codexActivity.install.configPath, '.codex/hooks.json');
     assert.deepEqual(codexActivity.install.events, [
       { event: 'UserPromptSubmit' },
-      { event: 'PreToolUse', matcher: '^(spawn_agent|mcp__.+)$' },
+      { event: 'PreToolUse', matcher: '^(spawn_agent|apply_patch|mcp__.+)$' },
+      { event: 'PreToolUse', matcher: '^Bash$', optIn: 'shell' },
       { event: 'PostToolUse', matcher: '^spawn_agent$' },
       { event: 'SubagentStart' },
       { event: 'SubagentStop' },
       { event: 'Stop' },
     ]);
+  });
+
+  it('maps a Bash command naming in-scope .md files to shell sightings (shared mapper)', () => {
+    const signals = codexActivity.mapEvent({
+      ...COMMON,
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: "sed -n '1,40p' docs/notes.md && cat 'docs/other.md' src/main.ts" },
+      tool_use_id: 'call_Bash000000000000001',
+    });
+    assert.deepEqual(signals, [
+      {
+        path: 'docs/notes.md',
+        phase: 'start',
+        owner: 'main:0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
+        detail: 'Bash',
+        access: 'shell',
+        session: '0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
+      },
+      {
+        path: 'docs/other.md',
+        phase: 'start',
+        owner: 'main:0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
+        detail: 'Bash',
+        access: 'shell',
+        session: '0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
+      },
+    ]);
+  });
+
+  it('a Bash command naming no in-scope .md disclaims (URL tails included)', () => {
+    const signals = codexActivity.mapEvent({
+      ...COMMON,
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'curl -s https://example.com/readme.md | head' },
+      tool_use_id: 'call_Bash000000000000002',
+    });
+    assert.equal(signals, null);
+  });
+
+  it('maps apply_patch to write PATH signals per named .md target (real 2026-08-18 payload)', () => {
+    const signals = codexActivity.mapEvent({
+      ...COMMON,
+      hook_event_name: 'PreToolUse',
+      tool_name: 'apply_patch',
+      tool_input: {
+        command:
+          '*** Begin Patch\n*** Update File: docs/notes.md\n@@\n-# Round Five\n+# Round Six\n*** End Patch\n',
+      },
+      tool_use_id: 'call_ApplyPatch000000001',
+    });
+    assert.deepEqual(signals, [
+      {
+        path: 'docs/notes.md',
+        phase: 'start',
+        owner: 'main:0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
+        detail: 'apply_patch',
+        access: 'write',
+        session: '0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
+      },
+    ]);
+  });
+
+  it('apply_patch: Add File lights, Delete File and non-md targets never do, paths dedupe', () => {
+    const signals = codexActivity.mapEvent({
+      ...COMMON,
+      hook_event_name: 'PreToolUse',
+      tool_name: 'apply_patch',
+      tool_input: {
+        command: [
+          '*** Begin Patch',
+          '*** Add File: docs/new.md',
+          '+# New',
+          '*** Update File: docs/new.md',
+          '@@',
+          '*** Delete File: docs/gone.md',
+          '*** Update File: src/index.ts',
+          '@@',
+          '*** Update File: /home/user/project/docs/abs.md',
+          '@@',
+          '*** Update File: ../outside.md',
+          '@@',
+          '*** End Patch',
+        ].join('\n'),
+      },
+      tool_use_id: 'call_ApplyPatch000000002',
+    });
+    // new.md deduped to one signal; gone.md (delete), index.ts (non-md)
+    // dropped here; the ../ escape survives extraction but matches no
+    // scanned node.path downstream (same posture as the shell rung).
+    assert.deepEqual(
+      signals!.map((s) => s.path),
+      ['docs/new.md', 'docs/abs.md', '../outside.md'],
+    );
+    for (const signal of signals!) {
+      assert.equal(signal.access, 'write');
+      assert.equal(signal.detail, 'apply_patch');
+    }
+  });
+
+  it('apply_patch with no markdown target disclaims', () => {
+    const signals = codexActivity.mapEvent({
+      ...COMMON,
+      hook_event_name: 'PreToolUse',
+      tool_name: 'apply_patch',
+      tool_input: {
+        command: '*** Begin Patch\n*** Update File: src/index.ts\n@@\n*** End Patch\n',
+      },
+      tool_use_id: 'call_ApplyPatch000000003',
+    });
+    assert.equal(signals, null);
   });
 
   it('maps an MCP tool call (mcp__server__tool) to a PATH signal on the mcp:// node', () => {

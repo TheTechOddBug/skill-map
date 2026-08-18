@@ -145,14 +145,19 @@ export interface IDemoMetaPayload {
 
 /**
  * Providers shipping a live-activity adapter, mirrored for the demo's
- * baked install-status probe (kept in sync with each provider's
- * `activity.install` descriptor).
+ * baked install-status probe. Kept in sync with each provider's
+ * `activity.install` descriptor (events = the base render, opt-in
+ * events excluded; 0 for the plugin-file shape) by the tripwire at
+ * `src/plugins/__tests__/demo-activity-descriptors.spec.ts`.
  */
-const DEMO_ACTIVITY_DESCRIPTORS: Record<string, { configPath: string; events: number }> = {
-  claude: { configPath: '.claude/settings.json', events: 7 },
-  codex: { configPath: '.codex/hooks.json', events: 3 },
-  antigravity: { configPath: '.agents/hooks.json', events: 2 },
-  opencode: { configPath: '.opencode/plugin/skill-map-activity.js', events: 0 },
+const DEMO_ACTIVITY_DESCRIPTORS: Record<
+  string,
+  { configPath: string; events: number; shellOptIn: boolean }
+> = {
+  claude: { configPath: '.claude/settings.json', events: 7, shellOptIn: true },
+  codex: { configPath: '.codex/hooks.json', events: 6, shellOptIn: true },
+  antigravity: { configPath: '.agents/hooks.json', events: 2, shellOptIn: false },
+  opencode: { configPath: '.opencode/plugin/skill-map-activity.js', events: 0, shellOptIn: false },
 };
 
 /**
@@ -802,6 +807,7 @@ export class StaticDataSource implements IDataSourcePort {
       configWired: false,
       bridgePresent: false,
       events: descriptor?.events ?? 0,
+      shellOptIn: descriptor?.shellOptIn ?? false,
     };
   }
 

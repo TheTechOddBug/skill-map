@@ -175,10 +175,7 @@ export function uninstallActivityBridge(
   // a later re-install starts relocked and only a fresh --shell
   // re-opens it. Runs regardless of `removed` (an uninstall on a
   // half-broken wiring must still drop the consent).
-  if (
-    install.kind === 'json-hooks' &&
-    (install.events ?? []).some((event) => event.optIn === 'shell')
-  ) {
+  if (providerOwnsShellOptIn(provider)) {
     retireShellOptIn(cwd);
   }
   const configPath = join(cwd, install.configPath);
@@ -199,6 +196,24 @@ export function uninstallActivityBridge(
     rmSync(defaultProjectActivityDir(cwd), { recursive: true, force: true });
   }
   return { removed: true };
+}
+
+/**
+ * Whether this Provider's install descriptor carries the shell opt-in
+ * event (spec provider-activity.md, Capture level rung 5). The single
+ * predicate behind every shell-rung surface: the opt-in WRITERS (the
+ * CLI `--shell`/`--no-shell` pair, the BFF `shellCapture` body field)
+ * refuse a provider without it, so `activity.shellCapture` can only
+ * ever be persisted from a provider whose uninstall path (below) also
+ * knows how to retire it.
+ */
+export function providerOwnsShellOptIn(provider: IProvider): boolean {
+  const install = provider.activity?.install;
+  return (
+    install !== undefined &&
+    install.kind === 'json-hooks' &&
+    (install.events ?? []).some((event) => event.optIn === 'shell')
+  );
 }
 
 /**

@@ -129,6 +129,18 @@ function bootstrap(): { proto: IProjectProto } {
     providers: [
       provideZonelessChangeDetection(),
       { provide: DATA_SOURCE, useValue: {} as Partial<IDataSourcePort> },
+      // The lens child injects the shared readiness probe (it refreshes
+      // it after a confirmed switch); stub it so its real ctor never
+      // pulls the WS chain into TestBed.
+      {
+        provide: ActivityReadinessService,
+        useValue: {
+          hookInstalled: signal<boolean | null>(null).asReadonly(),
+          lensId: signal<string | null>(null).asReadonly(),
+          shellOptIn: signal<boolean | null>(null).asReadonly(),
+          refresh: vi.fn().mockResolvedValue(undefined),
+        } as unknown as ActivityReadinessService,
+      },
     ],
   });
   const fixture = TestBed.createComponent(SettingsProjectLens);
@@ -185,6 +197,15 @@ describe('SettingsProjectLens providerOptions', () => {
       providers: [
         provideZonelessChangeDetection(),
         { provide: DATA_SOURCE, useValue: {} as Partial<IDataSourcePort> },
+        {
+          provide: ActivityReadinessService,
+          useValue: {
+            hookInstalled: signal<boolean | null>(null).asReadonly(),
+            lensId: signal<string | null>(null).asReadonly(),
+            shellOptIn: signal<boolean | null>(null).asReadonly(),
+            refresh: vi.fn().mockResolvedValue(undefined),
+          } as unknown as ActivityReadinessService,
+        },
       ],
     });
     const fixture = TestBed.createComponent(SettingsProjectLens);
@@ -228,6 +249,15 @@ describe('SettingsProjectLens active-provider select rollback', () => {
       providers: [
         provideZonelessChangeDetection(),
         { provide: DATA_SOURCE, useValue: {} as Partial<IDataSourcePort> },
+        {
+          provide: ActivityReadinessService,
+          useValue: {
+            hookInstalled: signal<boolean | null>(null).asReadonly(),
+            lensId: signal<string | null>(null).asReadonly(),
+            shellOptIn: signal<boolean | null>(null).asReadonly(),
+            refresh: vi.fn().mockResolvedValue(undefined),
+          } as unknown as ActivityReadinessService,
+        },
       ],
     });
     const fixture = TestBed.createComponent(SettingsProjectLens);
@@ -685,6 +715,7 @@ function activityStatusOf(overrides: Partial<IActivityInstallStatusApi>): IActiv
     configWired: false,
     bridgePresent: false,
     events: 5,
+    shellOptIn: true,
     ...overrides,
   };
 }
@@ -704,6 +735,8 @@ function bootstrapActivity(stub: Partial<IDataSourcePort>): {
         provide: ActivityReadinessService,
         useValue: {
           hookInstalled: signal<boolean | null>(null).asReadonly(),
+          lensId: signal<string | null>('claude').asReadonly(),
+          shellOptIn: signal<boolean | null>(true).asReadonly(),
           refresh: vi.fn().mockResolvedValue(undefined),
         } as unknown as ActivityReadinessService,
       },
@@ -1305,6 +1338,8 @@ describe('SettingsProjectCapture, conversation-capture toggle', () => {
           provide: ActivityReadinessService,
           useValue: {
             hookInstalled: signal(hookInstalled).asReadonly(),
+            lensId: signal<string | null>('claude').asReadonly(),
+            shellOptIn: signal<boolean | null>(true).asReadonly(),
             refresh: readinessRefresh,
           } as unknown as ActivityReadinessService,
         },
@@ -1535,6 +1570,8 @@ function liveProviders(opts?: { hookInstalled?: boolean | null }): {
         provide: ActivityReadinessService,
         useValue: {
           hookInstalled: signal(hookInstalled).asReadonly(),
+          lensId: signal<string | null>('claude').asReadonly(),
+          shellOptIn: signal<boolean | null>(true).asReadonly(),
           refresh: readinessRefresh,
         } as unknown as ActivityReadinessService,
       },

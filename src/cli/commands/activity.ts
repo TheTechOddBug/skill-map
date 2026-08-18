@@ -36,7 +36,7 @@
 
 import { Command, Option } from 'clipanion';
 
-import type { IActivityInstallEvent, IProvider } from '../../kernel/extensions/index.js';
+import type { IActivityInstallEvent, IProvider, TActivityInstall } from '../../kernel/extensions/index.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -45,6 +45,7 @@ import {
   demoteShellCaptureLevel,
   findActivityProvider,
   installActivityBridge,
+  providerOwnsShellOptIn,
   uninstallActivityBridge,
 } from '../../core/activity/install.js';
 import {
@@ -92,6 +93,22 @@ function activityProviders(providers: readonly IProvider[]): IProvider[] {
  * artifact is missing; the inverse never counts as partial, because the
  * bridge is shared across hook-file providers.
  */
+/**
+ * Events an install will render (`json-hooks` only): the descriptor
+ * list post opt-in filter, mirroring the engine's own render pass
+ * (`core/activity/install.ts`), so the success summary's event count
+ * reports the surface actually wired.
+ */
+function renderedEvents(
+  install: TActivityInstall,
+  shellOn: boolean,
+): readonly IActivityInstallEvent[] {
+  if (install.kind !== 'json-hooks') return [];
+  return (install.events ?? []).filter(
+    (event) => event.optIn === undefined || (event.optIn === 'shell' && shellOn),
+  );
+}
+
 type TActivityState = 'installed' | 'partial' | 'not-installed';
 
 /**
@@ -139,9 +156,37 @@ export class ActivityInstallCommand extends SmCommand {
    * rung 5): `--shell` persists `activity.shellCapture: true`
    * (project-local) BEFORE rendering, `--no-shell` retires it; neither
    * flag = the stored choice is respected (a bare re-install never
-   * silently drops the rung).
+   * silently drops the rung). Refused (exit 2, nothing persisted) for
+   * a provider whose descriptor carries no shell opt-in event: the key
+   * would unlock the ladder's `shell` selector with no capture wired
+   * behind it, and that provider's uninstall would never retire it.
    */
   shell = Option.Boolean('--shell', { description: 'Opt in the shell capture rung (renders the extra Bash hook; command lines are parsed for paths, never captured).' });
+
+  /**
+   * Shell opt-in gate (see the option doc): the flag pair only means
+   * something on a provider whose descriptor owns the opt-in event.
+   * Prints the refusal (naming the shell-capable providers) and says
+   * so; a `false` lets the install proceed.
+   */
+  private shellFlagRefused(
+    provider: IProvider,
+    providers: readonly IProvider[],
+    errGlyph: string,
+  ): boolean {
+    if (this.shell === undefined || providerOwnsShellOptIn(provider)) return false;
+    const capable = providers
+      .filter((p) => providerOwnsShellOptIn(p))
+      .map((p) => sanitizeForTerminal(p.id));
+    this.printer!.error(
+      tx(ACTIVITY_TEXTS.shellNotSupported, {
+        glyph: errGlyph,
+        provider: sanitizeForTerminal(provider.id),
+        providers: capable.length > 0 ? capable.join(', ') : 'none',
+      }),
+    );
+    return true;
+  }
 
   /**
    * Persist the flag pair when given, then answer the stored choice
@@ -168,15 +213,10 @@ export class ActivityInstallCommand extends SmCommand {
       this.printUnknownProvider(errGlyph, ansi.dim.bind(ansi), providers);
       return ExitCode.Error;
     }
+    if (this.shellFlagRefused(provider, providers, errGlyph)) return ExitCode.Error;
     const install = provider.activity.install;
     const ctx = defaultRuntimeContext();
-    const shellOn = this.resolveShellOptIn(ctx.cwd);
-    const events: readonly IActivityInstallEvent[] =
-      install.kind === 'json-hooks'
-        ? (install.events ?? []).filter(
-            (event) => event.optIn === undefined || (event.optIn === 'shell' && shellOn),
-          )
-        : [];
+    const events = renderedEvents(install, this.resolveShellOptIn(ctx.cwd));
 
     // Consent: both shapes write into territory skill-map does not own
     // (a vendor hooks file, or a plugin dir the runtime auto-loads).

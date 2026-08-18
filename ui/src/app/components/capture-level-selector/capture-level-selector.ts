@@ -6,7 +6,7 @@
  * and mirrored in Settings > Project.
  *
  * The `shell` position unlocks only with the install-side opt-in
- * (`sm activity install claude --shell`, spec §Capture level rung 5:
+ * (`sm activity install <provider> --shell`, spec §Capture level rung 5:
  * double opt-in by design, command lines are operator content); until
  * then it renders disabled so the ladder's shape stays honest.
  */

@@ -126,6 +126,7 @@ interface IStatusEnvelope {
   configWired: boolean;
   bridgePresent: boolean;
   events: number;
+  shellOptIn: boolean;
   removed?: boolean;
 }
 
@@ -159,6 +160,7 @@ describe('GET /api/activity/install, status probe', () => {
         configWired: false,
         bridgePresent: false,
         events: 0,
+        shellOptIn: false,
       });
     });
   });
@@ -175,6 +177,22 @@ describe('GET /api/activity/install, status probe', () => {
       // SubagentStop, Stop (the turn-end sweep), SessionEnd (the exact
       // journal finalization, 2026-08-16).
       assert.equal(envelope.events, 7);
+      // The descriptor owns the shell opt-in event (rung 5), so the
+      // UI's shell-unlock affordances render for this lens.
+      assert.equal(envelope.shellOptIn, true);
+    });
+  });
+
+  it('shellOptIn follows the descriptor: true for codex (2026-08-18), false for antigravity', async () => {
+    await bootAndUse(async (handle) => {
+      const codex = (await (await getStatus(handle, 'codex')).json()) as IStatusEnvelope;
+      assert.equal(codex.supported, true);
+      assert.equal(codex.shellOptIn, true);
+      const antigravity = (await (
+        await getStatus(handle, 'antigravity')
+      ).json()) as IStatusEnvelope;
+      assert.equal(antigravity.supported, true);
+      assert.equal(antigravity.shellOptIn, false);
     });
   });
 
@@ -330,6 +348,29 @@ describe('POST /api/activity/install, consent gate + effects', () => {
       ) as { activity?: { captureLevel?: string; shellCapture?: boolean } };
       assert.equal(local.activity?.shellCapture, false);
       assert.equal(local.activity?.captureLevel, 'mcp');
+    });
+  });
+
+  it('body shellCapture is refused (400) for a provider without the shell opt-in event', async () => {
+    await bootAndUse(async (handle) => {
+      // antigravity declares no optIn: 'shell' event, so the field is
+      // refused BEFORE anything persists (the key would unlock the
+      // shell selector with no capture wired, and that provider's
+      // uninstall would never retire it).
+      const res = await post(handle, '/api/activity/install', {
+        provider: 'antigravity',
+        confirm: true,
+        shellCapture: true,
+      });
+      assert.equal(res.status, 400);
+      const envelope = (await res.json()) as { error: { message: string } };
+      assert.equal(envelope.error.message.includes('shell'), true);
+      assert.equal(
+        existsSync(join(root.fixtureRoot, '.skill-map', 'settings.local.json')),
+        false,
+      );
+      // And nothing was installed either: the gate fires before the merge.
+      assert.equal(existsSync(join(root.fixtureRoot, '.agents', 'hooks.json')), false);
     });
   });
 

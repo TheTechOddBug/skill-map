@@ -1456,6 +1456,13 @@ export interface IActivityInstallStatusApi {
   configWired: boolean;
   bridgePresent: boolean;
   events: number;
+  /**
+   * The provider's descriptor carries the shell opt-in event (spec
+   * `provider-activity.md` §Capture level rung 5). The shell-unlock
+   * affordances condition on this instead of hardcoding a provider
+   * list.
+   */
+  shellOptIn: boolean;
 }
 
 /**

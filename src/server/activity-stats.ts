@@ -11,6 +11,11 @@
  *   - `keepAlive` starts NEVER count and never touch the owner sets:
  *     custody is not an execution.
  *   - `sticky` starts count ONCE per `(nodePath, owner)` pair.
+ *   - `access: 'shell'` starts NEVER count: a heuristic path sighting
+ *     parsed out of a shell command is not an execution (spec §Capture
+ *     level rung 5, "a SIGHTING, not evidence"). The sighting still
+ *     lands in the typed recent log (both ends, `kind: 'shell'`) so
+ *     the inspector can show who named the file.
  *   - Everything else (skill invocations, command expansions, markdown
  *     reads) counts on every signal.
  *
@@ -136,6 +141,9 @@ export class ActivityStatsService {
   record(data: INodeActivityEventData): INodeActivityStats | null {
     if (data.nodePath === undefined || data.phase !== 'start') return null;
     if (data.keepAlive === true) return null;
+    if (data.access === 'shell') {
+      return this.sight(data.nodePath, data.owner, data.detail, data.access);
+    }
     if (data.sticky === true && data.owner !== undefined) {
       if (!this.claimStickyOnce(data.nodePath, data.owner)) return null;
     }
@@ -267,11 +275,34 @@ export class ActivityStatsService {
     return fresh;
   }
 
+  /**
+   * A shell SIGHTING: lands in the typed recent log on both ends (the
+   * sighted node's entry plus the caller's mirrored one) but mutates
+   * NO execution stat, `count` / `lastStartAt` / `lastOwner` / owner
+   * set stay untouched (spec §Execution stats). Returns `null` so the
+   * WS frame rides without stats enrichment, like `keepAlive` custody.
+   */
+  private sight(
+    nodePath: string,
+    owner: string | undefined,
+    detail: string | undefined,
+    access: 'shell',
+  ): null {
+    const at = Date.now();
+    const caller = this.correlateCaller(nodePath, owner, access);
+    this.pushRecent(
+      this.stateFor(nodePath),
+      buildRecentEntry({ at, owner, detail, caller, kind: access }),
+    );
+    this.trackAccess(nodePath, owner, detail, access, caller, at);
+    return null;
+  }
+
   private count(
     nodePath: string,
     owner: string | undefined,
     detail: string | undefined,
-    access: 'mcp' | 'read' | 'write' | 'shell' | undefined,
+    access: 'mcp' | 'read' | 'write' | undefined,
   ): INodeActivityStats {
     const state = this.stateFor(nodePath);
     state.count += 1;
