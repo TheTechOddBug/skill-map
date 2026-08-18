@@ -76,42 +76,42 @@ function makeCmd(provider: string, shell: boolean | undefined): ActivityInstallC
 
 describe('sm activity install --shell gate', () => {
   it('refuses --shell for a provider without the opt-in event, persisting nothing', async () => {
-    const fixture = freshFixture('antigravity-shell');
+    const fixture = freshFixture('opencode-shell');
     process.chdir(fixture);
 
     const cap = captureContext();
-    const cmd = makeCmd('antigravity', true);
+    const cmd = makeCmd('opencode', true);
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 2);
 
     const err = cap.stderr();
     ok(err.includes('no shell capture rung'), 'refusal names the missing rung');
-    ok(err.includes('claude') && err.includes('codex'), 'refusal lists the shell-capable providers');
+    ok(err.includes('claude') && err.includes('codex') && err.includes('antigravity'), 'refusal lists the shell-capable providers');
     // Nothing persisted, nothing installed: the gate fires first.
     strictEqual(existsSync(join(fixture, '.skill-map', 'settings.local.json')), false);
-    strictEqual(existsSync(join(fixture, '.agents', 'hooks.json')), false);
+    strictEqual(existsSync(join(fixture, '.opencode', 'plugin', 'skill-map-activity.js')), false);
   });
 
   it('refuses --no-shell the same way (the pair belongs to the rung owners)', async () => {
-    const fixture = freshFixture('antigravity-no-shell');
+    const fixture = freshFixture('opencode-no-shell');
     process.chdir(fixture);
 
     const cap = captureContext();
-    const cmd = makeCmd('antigravity', false);
+    const cmd = makeCmd('opencode', false);
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 2);
-    strictEqual(existsSync(join(fixture, '.agents', 'hooks.json')), false);
+    strictEqual(existsSync(join(fixture, '.opencode', 'plugin', 'skill-map-activity.js')), false);
   });
 
   it('a bare install of the same provider still proceeds (the gate is flag-scoped)', async () => {
-    const fixture = freshFixture('antigravity-bare');
+    const fixture = freshFixture('opencode-bare');
     process.chdir(fixture);
 
     const cap = captureContext();
-    const cmd = makeCmd('antigravity', undefined);
+    const cmd = makeCmd('opencode', undefined);
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 0);
-    strictEqual(existsSync(join(fixture, '.agents', 'hooks.json')), true);
+    strictEqual(existsSync(join(fixture, '.opencode', 'plugin', 'skill-map-activity.js')), true);
   });
 
   it('codex accepts --shell now that its descriptor owns the rung (2026-08-18)', async () => {

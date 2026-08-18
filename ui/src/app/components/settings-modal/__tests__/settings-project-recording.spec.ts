@@ -155,9 +155,9 @@ describe('SettingsProjectRealtime recording row', () => {
   });
 
   it('a lens without the shell opt-in event gets the unavailable line, no command, no copy', async () => {
-    await mount(0, false, true, { id: 'codex', shellOptIn: false });
+    await mount(0, false, true, { id: 'opencode', shellOptIn: false });
     expect(query('settings-project-shell-unlock-hint')?.textContent).toContain(
-      'codex runtime exposes no shell hook',
+      'opencode runtime exposes no shell hook',
     );
     expect(query('settings-project-shell-unlock-command')).toBeNull();
     expect(query('settings-project-shell-unlock-copy')).toBeNull();

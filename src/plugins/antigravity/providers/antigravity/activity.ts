@@ -5,18 +5,34 @@
  * activity bridge) into node-attributable signals.
  *
  * Characterised against real runs (probe log, 2026-07-04, the antigravity
- * activity fixture now consolidated into `fixtures/antigravity/`) cross-checked with the official
+ * activity fixture now consolidated into `fixtures/antigravity/`;
+ * write / shell surface re-probed 2026-08-18 against agy 1.1.14)
+ * cross-checked with the official
  * hooks surface (antigravity.google/docs/hooks; events PreToolUse /
- * PostToolUse / PreInvocation / PostInvocation / Stop). Antigravity's
- * signal surface is read-shaped:
+ * PostToolUse / PreInvocation / PostInvocation / Stop):
  *
  * - **Payloads carry NO `hook_event_name`** (unlike Claude / Codex).
  *   Events are distinguished STRUCTURALLY: a `toolCall` object means a
  *   tool event, `invocationNum` an invocation pulse, `terminationReason`
- *   the Stop. The descriptor wires `PreToolUse` for two tool names,
- *   `view_file` and `call_mcp_tool` (matcher `^(view_file|call_mcp_tool)$`),
- *   so every bridge-forwarded tool payload is one of those; the shape guard
- *   keeps hand-wired extras harmless.
+ *   the Stop. The descriptor's matchers scope which tool names reach
+ *   the bridge; the shape guard keeps hand-wired extras harmless.
+ * - **`write_to_file` / `replace_file_content`** (both
+ *   `toolCall.args.TargetFile`, ABSOLUTE; live-verified 2026-08-18,
+ *   the July tool-catalog guesses `create_file` / `edit_file` never
+ *   fire): in-scope `.md` writes become PATH signals with
+ *   `access: 'write'` (capture-level rung 3), the literal tool name as
+ *   `detail` so creations label apart from edits.
+ * - **`run_command`** (opt-in, spec Capture level rung 5;
+ *   `toolCall.args.CommandLine` + explicit `.Cwd`): `.md` tokens
+ *   extracted with the shared shell grammar, absolutized against the
+ *   command's own Cwd, contained against `workspacePaths[*]`, emitted
+ *   as `access: 'shell'` sightings. Rendered only under the shell key
+ *   (`sm activity install antigravity --shell`).
+ * - **Trust gate (agy 1.1.x)**: workspace-local hooks load only for a
+ *   TRUSTED folder (`trustedWorkspaces` in the CLI settings); a fresh
+ *   install fires nothing until the folder is trusted, the
+ *   codex-hook-trust analogue. The print-mode `/hooks` answer shows
+ *   what loaded.
  * - **`view_file`** (`toolCall.args.AbsolutePath`, absolute): in-scope
  *   `.md` views become PATH signals, which is how the on-disk graph
  *   lights on this provider. Skills' `references/*.md` reads light those
@@ -57,6 +73,7 @@ import {
   MAIN_OWNER,
   nonEmptyString,
   relativizeMarkdownPath,
+  shellCommandMarkdownPaths,
 } from '../../../../kernel/util/activity-adapter.js';
 import { mcpNodePath } from '../../../../kernel/util/mcp.js';
 
@@ -69,14 +86,17 @@ export const antigravityActivity: IProviderActivityAdapter = {
     // not the workspace root (live-verified 2026-07-04), so the bridge
     // command needs the ../ hop to resolve.
     commandCwd: 'config-dir',
-    // Two events: file views (the only node-attributable signal this
-    // runtime exposes, so the bridge never spawns for run_command /
-    // write_to_file / subagent traffic) and the conversation Stop
-    // (owner release: the whole chain goes dark the moment the agent
-    // idles instead of waiting out the decay). Stop takes the FLAT
-    // entry shape (agy's lifecycle events reject the matcher group).
+    // Base events: file views, the two write tools and MCP calls
+    // (matcher-scoped so the bridge never spawns for find_by_name /
+    // subagent traffic), plus the conversation Stop (owner release:
+    // the whole chain goes dark the moment the agent idles instead of
+    // waiting out the decay). Stop takes the FLAT entry shape (agy's
+    // lifecycle events reject the matcher group). The shell rung is a
+    // separate opt-in event on `run_command` (spec Capture level rung
+    // 5), rendered only while `activity.shellCapture` is on.
     events: [
-      { event: 'PreToolUse', matcher: '^(view_file|call_mcp_tool)$' },
+      { event: 'PreToolUse', matcher: '^(view_file|call_mcp_tool|write_to_file|replace_file_content)$' },
+      { event: 'PreToolUse', matcher: '^run_command$', optIn: 'shell' },
       { event: 'Stop', entryShape: 'flat' },
     ],
   },
@@ -86,9 +106,8 @@ export const antigravityActivity: IProviderActivityAdapter = {
     const event = raw as Record<string, unknown>;
     const toolCall = readToolCall(event);
     if (toolCall !== null) {
-      if (toolCall.name === 'view_file') return mapFileView(event, toolCall.args);
-      if (toolCall.name === 'call_mcp_tool') return mapMcpToolCall(event, toolCall.args);
-      return null;
+      const mapper = TOOL_MAPPERS[toolCall.name];
+      return mapper ? mapper(event, toolCall.args) : null;
     }
     return mapConversationStop(event);
   },
@@ -98,6 +117,22 @@ interface IToolCall {
   name: string;
   args: Record<string, unknown>;
 }
+
+/**
+ * Tool-name -> mapper dispatch (replaced the if-chain when the write
+ * tools and the shell rung joined, 2026-08-18). The write pair shares
+ * `mapFileWrite` with the literal tool name threaded as `detail`.
+ */
+const TOOL_MAPPERS: Record<
+  string,
+  (event: Record<string, unknown>, args: Record<string, unknown>) => IActivitySignal[] | null
+> = {
+  view_file: mapFileView,
+  call_mcp_tool: mapMcpToolCall,
+  write_to_file: (event, args) => mapFileWrite(event, args, 'write_to_file'),
+  replace_file_content: (event, args) => mapFileWrite(event, args, 'replace_file_content'),
+  run_command: mapRunCommand,
+};
 
 /** Structural event detection: a tool event carries a `toolCall` object. */
 function readToolCall(event: Record<string, unknown>): IToolCall | null {
@@ -131,9 +166,63 @@ function mapFileView(
   const relative = relativizeMarkdownPath(args['AbsolutePath'], event['workspacePaths']);
   if (relative === null) return null;
   // `detail` = literal invoking tool name (spec/provider-activity.md §detail).
-  // Reads only: Antigravity's matcher captures no write tool today, so
-  // the capture-level `writes` rung has nothing to stamp here.
   return [{ path: relative, phase: 'start', owner: ownerOf(event), detail: 'view_file' }];
+}
+
+/**
+ * `write_to_file` (new files) / `replace_file_content` (edits) → PATH
+ * signal with the write access class (capture-level rung 3). Both
+ * carry an ABSOLUTE `args.TargetFile` (live-verified 2026-08-18, agy
+ * 1.1.14; the July tool-catalog guesses `create_file` / `edit_file`
+ * never fire), so the same filter-first relativization as `view_file`
+ * applies; the literal tool name rides as `detail` so creations label
+ * apart from edits. A brand-new file resolves to no scanned node and
+ * drops until the watcher scans it, the claude `Write` precedent.
+ */
+function mapFileWrite(
+  event: Record<string, unknown>,
+  args: Record<string, unknown>,
+  toolName: string,
+): IActivitySignal[] | null {
+  const relative = relativizeMarkdownPath(args['TargetFile'], event['workspacePaths']);
+  if (relative === null) return null;
+  return [
+    {
+      path: relative,
+      phase: 'start',
+      owner: ownerOf(event),
+      detail: toolName,
+      access: 'write' as const,
+    },
+  ];
+}
+
+/**
+ * `run_command` → shell sightings (opt-in, spec Capture level rung 5):
+ * `.md` tokens extracted from `args.CommandLine` with the shared shell
+ * grammar, absolutized against the command's own `args.Cwd` (this
+ * runtime reports it explicitly, more precise than the session cwd
+ * claude / codex offer) and contained against `workspacePaths[*]`.
+ * The command text never leaves the parser; each survivor rides
+ * `access: 'shell'` with `detail: 'run_command'`.
+ */
+function mapRunCommand(
+  event: Record<string, unknown>,
+  args: Record<string, unknown>,
+): IActivitySignal[] | null {
+  const command = nonEmptyString(args['CommandLine']);
+  const cwd = nonEmptyString(args['Cwd']);
+  if (!command || !cwd) return null;
+  const paths = shellCommandMarkdownPaths(command, cwd, event['workspacePaths']);
+  if (paths.length === 0) return null;
+  const owner = ownerOf(event);
+  return paths.map((path) => ({
+    path,
+    phase: 'start' as const,
+    owner,
+    detail: 'run_command',
+    access: 'shell' as const,
+  }));
 }
 
 /**

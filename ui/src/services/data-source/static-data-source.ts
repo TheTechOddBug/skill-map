@@ -156,7 +156,7 @@ const DEMO_ACTIVITY_DESCRIPTORS: Record<
 > = {
   claude: { configPath: '.claude/settings.json', events: 7, shellOptIn: true },
   codex: { configPath: '.codex/hooks.json', events: 6, shellOptIn: true },
-  antigravity: { configPath: '.agents/hooks.json', events: 2, shellOptIn: false },
+  antigravity: { configPath: '.agents/hooks.json', events: 2, shellOptIn: true },
   opencode: { configPath: '.opencode/plugin/skill-map-activity.js', events: 0, shellOptIn: false },
 };
 

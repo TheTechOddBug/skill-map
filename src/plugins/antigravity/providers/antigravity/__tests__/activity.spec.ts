@@ -24,15 +24,120 @@ const COMMON = {
 };
 
 describe('antigravityActivity.mapEvent', () => {
-  it('declares the named-group descriptor (view_file + call_mcp_tool)', () => {
+  it('declares the named-group descriptor (views, writes, MCP + the shell opt-in)', () => {
     assert.equal(antigravityActivity.install.kind, 'json-hooks');
     assert.equal(antigravityActivity.install.configPath, '.agents/hooks.json');
     assert.equal(antigravityActivity.install.group, 'skill-map-activity');
     assert.equal(antigravityActivity.install.commandCwd, 'config-dir');
     assert.deepEqual(antigravityActivity.install.events, [
-      { event: 'PreToolUse', matcher: '^(view_file|call_mcp_tool)$' },
+      {
+        event: 'PreToolUse',
+        matcher: '^(view_file|call_mcp_tool|write_to_file|replace_file_content)$',
+      },
+      { event: 'PreToolUse', matcher: '^run_command$', optIn: 'shell' },
       { event: 'Stop', entryShape: 'flat' },
     ]);
+  });
+
+  it('maps write_to_file to a write PATH signal (real 2026-08-18 capture)', () => {
+    const signals = antigravityActivity.mapEvent({
+      ...COMMON,
+      stepIdx: 4,
+      toolCall: {
+        name: 'write_to_file',
+        args: {
+          CodeContent: '# Created\n',
+          Description: "Create docs/created.md with content '# Created'",
+          Overwrite: true,
+          TargetFile: `${WORKSPACE}/docs/created.md`,
+          toolAction: 'Creating created.md file',
+          toolSummary: 'File creation',
+        },
+      },
+    });
+    assert.deepEqual(signals, [
+      {
+        path: 'docs/created.md',
+        phase: 'start',
+        owner: COMMON.conversationId,
+        detail: 'write_to_file',
+        access: 'write',
+      },
+    ]);
+  });
+
+  it('maps replace_file_content (edit) to a write PATH signal, non-md targets disclaim', () => {
+    const signals = antigravityActivity.mapEvent({
+      ...COMMON,
+      stepIdx: 6,
+      toolCall: {
+        name: 'replace_file_content',
+        args: {
+          AllowMultiple: false,
+          EndLine: 1,
+          StartLine: 1,
+          TargetContent: '# Created',
+          ReplacementContent: '# Edited',
+          TargetFile: `${WORKSPACE}/docs/created.md`,
+        },
+      },
+    });
+    assert.equal(signals?.[0]?.access, 'write');
+    assert.equal(signals?.[0]?.detail, 'replace_file_content');
+    assert.equal(signals?.[0]?.path, 'docs/created.md');
+
+    const nonMd = antigravityActivity.mapEvent({
+      ...COMMON,
+      toolCall: {
+        name: 'replace_file_content',
+        args: { TargetFile: `${WORKSPACE}/src/app.ts` },
+      },
+    });
+    assert.equal(nonMd, null);
+  });
+
+  it('maps run_command .md tokens against the command Cwd, contained in the workspace', () => {
+    const signals = antigravityActivity.mapEvent({
+      ...COMMON,
+      stepIdx: 8,
+      toolCall: {
+        name: 'run_command',
+        args: {
+          // Cwd is a SUBDIR: relative tokens resolve against it, not
+          // the workspace root (the shape agy reports, 2026-08-18).
+          CommandLine: `cat notes.md && grep x ${WORKSPACE}/docs/guide.md https://x.io/a.md`,
+          Cwd: `${WORKSPACE}/docs`,
+          WaitMsBeforeAsync: 5000,
+        },
+      },
+    });
+    assert.deepEqual(signals, [
+      {
+        path: 'docs/notes.md',
+        phase: 'start',
+        owner: COMMON.conversationId,
+        detail: 'run_command',
+        access: 'shell',
+      },
+      {
+        path: 'docs/guide.md',
+        phase: 'start',
+        owner: COMMON.conversationId,
+        detail: 'run_command',
+        access: 'shell',
+      },
+    ]);
+  });
+
+  it('a run_command naming no in-scope .md disclaims', () => {
+    const signals = antigravityActivity.mapEvent({
+      ...COMMON,
+      toolCall: {
+        name: 'run_command',
+        args: { CommandLine: 'ls -la src/', Cwd: WORKSPACE },
+      },
+    });
+    assert.equal(signals, null);
   });
 
   it('maps a call_mcp_tool invocation to a PATH signal on the mcp://<server> node (real capture)', () => {

@@ -182,9 +182,9 @@ export class FilesView implements OnInit {
 
   /**
    * Path to highlight and reveal in the tree, but only while the "files
-   * follows selection" preference is on. When off (the default) this is
-   * `null`, so the row highlight clears and the reveal effect is inert: the
-   * rail ignores the map selection exactly as it did before the feature.
+   * follows selection" preference is on (the default since 2026-08-18).
+   * When toggled off this is `null`, so the row highlight clears and the
+   * reveal effect is inert: the rail ignores the map selection.
    */
   readonly highlightedPath = computed(() =>
     this.followSelection.enabled() ? (this.urlPath() ?? null) : null,

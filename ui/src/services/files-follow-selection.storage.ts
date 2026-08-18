@@ -9,21 +9,22 @@ const FILES_FOLLOW_SELECTION_KEY = 'sm.workspace.files-follow-selection';
 
 /**
  * "Files follows the map selection" preference, read once at service
- * construction. Default OFF: selecting a node on the map leaves the files
- * rail untouched (today's behaviour). `'1'` opts into revealing the
- * selected node in the tree (highlight + auto-expand + scroll into view),
- * set via the rail's directions-icon toggle; an absent key means the
- * operator never chose, so the default applies.
+ * construction. Default ON (user decision 2026-08-18; it shipped OFF to
+ * preserve the pre-feature behaviour, but following the selection is
+ * the experience the operator actually wants out of the box): selecting
+ * a node on the map reveals it in the tree (highlight + auto-expand +
+ * scroll into view). `'0'` opts out via the rail's directions-icon
+ * toggle; an absent key means the operator never chose, so the default
+ * applies.
  */
 export function readStoredFilesFollowSelection(): boolean {
   let raw: string | null = null;
   try {
     raw = localStorage.getItem(FILES_FOLLOW_SELECTION_KEY);
   } catch {
-    return false;
+    return true;
   }
-  if (raw === null) return false;
-  return raw === '1';
+  return raw !== '0';
 }
 
 export function writeStoredFilesFollowSelection(value: boolean): void {

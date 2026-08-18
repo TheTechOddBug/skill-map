@@ -171,12 +171,35 @@ export function mapShellInvocation(event: Record<string, unknown>): IActivitySig
 
 /** Extract, relativize, dedupe and cap the command's `.md` tokens. */
 function shellMarkdownPaths(command: string, cwd: unknown): string[] {
-  const root = typeof cwd === 'string' && cwd.length > 0 ? cwd : null;
-  if (root === null) return [];
+  const root = nonEmptyString(cwd);
+  if (!root) return [];
+  return shellCommandMarkdownPaths(command, root, [root]);
+}
+
+/**
+ * The shell grammar's multi-root core, for runtimes whose payload
+ * separates the command's OWN cwd from the workspace roots
+ * (Antigravity `run_command`: `Cwd` + `workspacePaths`): tokens
+ * absolutize against `cwd` and containment runs against `roots`.
+ * Claude / codex collapse both onto the session cwd via
+ * `shellMarkdownPaths` above. Quote-stripping, `~` refusal, dedupe and
+ * the cap are identical across callers by construction.
+ */
+export function shellCommandMarkdownPaths(
+  command: string,
+  cwd: string,
+  roots: unknown,
+): string[] {
   const tokens = command.replace(/['"]/g, ' ').match(SHELL_MD_TOKEN) ?? [];
-  const seen = new Set<string>(
-    tokens.map((token) => scopeRelativeMarkdownPath(token, root)).filter((path) => path !== null),
-  );
+  const seen = new Set<string>();
+  for (const token of tokens) {
+    if (token.startsWith('~')) continue;
+    const absolute = token.startsWith('/')
+      ? token
+      : `${cwd}/${token.startsWith('./') ? token.slice(2) : token}`;
+    const relative = relativizeMarkdownPath(absolute, roots);
+    if (relative !== null) seen.add(relative);
+  }
   return [...seen].slice(0, SHELL_MAX_PATHS);
 }
 

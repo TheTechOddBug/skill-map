@@ -183,16 +183,17 @@ describe('GET /api/activity/install, status probe', () => {
     });
   });
 
-  it('shellOptIn follows the descriptor: true for codex (2026-08-18), false for antigravity', async () => {
+  it('shellOptIn follows the descriptor: codex + antigravity own the rung, opencode never can', async () => {
     await bootAndUse(async (handle) => {
-      const codex = (await (await getStatus(handle, 'codex')).json()) as IStatusEnvelope;
-      assert.equal(codex.supported, true);
-      assert.equal(codex.shellOptIn, true);
-      const antigravity = (await (
-        await getStatus(handle, 'antigravity')
-      ).json()) as IStatusEnvelope;
-      assert.equal(antigravity.supported, true);
-      assert.equal(antigravity.shellOptIn, false);
+      for (const id of ['codex', 'antigravity']) {
+        const envelope = (await (await getStatus(handle, id)).json()) as IStatusEnvelope;
+        assert.equal(envelope.supported, true, id);
+        assert.equal(envelope.shellOptIn, true, id);
+      }
+      // plugin-file shape: no events, structurally rung-less.
+      const opencode = (await (await getStatus(handle, 'opencode')).json()) as IStatusEnvelope;
+      assert.equal(opencode.supported, true);
+      assert.equal(opencode.shellOptIn, false);
     });
   });
 
@@ -353,12 +354,12 @@ describe('POST /api/activity/install, consent gate + effects', () => {
 
   it('body shellCapture is refused (400) for a provider without the shell opt-in event', async () => {
     await bootAndUse(async (handle) => {
-      // antigravity declares no optIn: 'shell' event, so the field is
-      // refused BEFORE anything persists (the key would unlock the
-      // shell selector with no capture wired, and that provider's
-      // uninstall would never retire it).
+      // opencode (plugin-file, no events) declares no optIn: 'shell'
+      // event, so the field is refused BEFORE anything persists (the
+      // key would unlock the shell selector with no capture wired, and
+      // that provider's uninstall would never retire it).
       const res = await post(handle, '/api/activity/install', {
-        provider: 'antigravity',
+        provider: 'opencode',
         confirm: true,
         shellCapture: true,
       });
@@ -370,7 +371,10 @@ describe('POST /api/activity/install, consent gate + effects', () => {
         false,
       );
       // And nothing was installed either: the gate fires before the merge.
-      assert.equal(existsSync(join(root.fixtureRoot, '.agents', 'hooks.json')), false);
+      assert.equal(
+        existsSync(join(root.fixtureRoot, '.opencode', 'plugin', 'skill-map-activity.js')),
+        false,
+      );
     });
   });
 

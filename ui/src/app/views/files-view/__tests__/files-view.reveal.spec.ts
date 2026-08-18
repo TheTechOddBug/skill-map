@@ -147,7 +147,9 @@ async function boot(options: { follow: boolean; path?: string; reduceMotion?: bo
       },
     ],
   });
-  if (options.follow) TestBed.inject(FilesFollowSelectionService).toggle();
+  // The preference defaults ON (2026-08-18): the off cases opt out by
+  // toggling DOWN from the default instead of the old opt-in toggle.
+  if (!options.follow) TestBed.inject(FilesFollowSelectionService).toggle();
 
   const fixture = TestBed.createComponent(FilesView);
   await settleVirtualScroll(fixture);
@@ -201,7 +203,7 @@ describe('FilesView reveal (files follows the map selection)', () => {
     expect(scroller(fixture).scrollTop).toBe(0);
   });
 
-  it('is inert while the follow preference is off (the default)', async () => {
+  it('is inert while the follow preference is toggled off', async () => {
     const target = 'beta/nested/f020.md';
     const fixture = await boot({ follow: false, path: target });
 
