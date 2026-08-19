@@ -1,5 +1,17 @@
 # Spec changelog
 
+## 1.12.2
+
+### Patch Changes
+
+- `spec/provider-activity.md` §Per-provider signal notes gains a payload vocabulary table: per provider, the event discriminator, tool-name key, argument container, containment root, session key, markdown tools, path key, and the skill / spawn / shell triggers. No row matches across all four providers, which is the hidden dependency a cloned adapter inherits wholesale, and it is the table the mapper digest's reported key names are read against.
+
+- Live activity gains a mapper digest: the server accumulates, per provider, how many events arrived and how many resolved to nothing, plus the shape of the ones that did not (hook type, tool name, payload key names, never a value). `sm activity status --verify` reports it on each `--json` entry and warns when a provider received events and mapped none, the case the wiring self-test cannot catch because its probe is answered before the mapper runs.
+
+  ## User-facing
+
+  Live map dark while your agent is clearly working? `sm activity status --verify` now tells you whether events are arriving at all, and if they are, what the provider adapter failed to understand about them.
+
 ## 1.12.1
 
 ### Patch Changes
