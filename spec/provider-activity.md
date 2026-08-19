@@ -446,7 +446,8 @@ thing the self-test explicitly cannot establish, §Wiring self-test), and what
 the adapter did with them. A Provider reporting `received > 0` with
 `resolved: 0` has a live runtime and a broken mapper, and the recorded `keys`
 name the vocabulary the adapter was handed, which is the vocabulary it must be
-read against.
+read against (§Per-provider signal notes carries the per-provider table to read
+them against).
 
 **What it does NOT prove**. That a disclaimed shape is a DEFECT. Disclaiming is
 the contract for everything a Provider deliberately ignores: a non-`.md` read,
@@ -1299,6 +1300,45 @@ declares which applies:
 
 Live-verified against real runs (2026-06-30). These inform each provider's
 `mapEvent`; they are descriptive of vendor behavior, not normative.
+
+### Payload vocabulary
+
+The signal-by-signal table below is the deep reference; this one is the shape
+of the payloads it reads, gathered in a single place. Nothing about it is
+normative, but it is the fastest way to answer the question that produced the
+defect the mapper digest exists for (§Mapper digest): **which of these cells
+does my adapter assume?**
+
+Note that no row is the same across all four providers, and no field name is
+shared by all of them. An adapter cloned from another provider therefore
+inherits this ENTIRE column as a hidden dependency, and because `mapEvent` is
+total by contract, every cell that disagrees disclaims in silence rather than
+failing. Read the key names the digest reports against this table.
+
+| | `claude` | `codex` | `opencode` | `antigravity` |
+|---|---|---|---|---|
+| Event discriminator | `hook_event_name` | `hook_event_name` | `hook` | none, STRUCTURAL (a `toolCall` object means a tool event) |
+| Tool name | `tool_name` | `tool_name` | `input.tool` | `toolCall.name` |
+| Tool arguments | `tool_input` | `tool_input` | `input.args` | `toolCall.args` |
+| Containment root | `cwd` | `cwd` | `directory` | `workspacePaths[*]` |
+| Session / owner | `session_id` | `session_id` | `input.sessionID` | `conversationId` |
+| Markdown tools | `Read` / `Write` / `Edit` | `apply_patch` (writes only; reads fire no hook, upstream open) | `read` / `write` / `edit` | `view_file` / `replace_file_content` |
+| Path key | `tool_input.file_path` (absolute) | patch headers inside `tool_input.command` | `args.filePath` (absolute) | `args.AbsolutePath` / `args.TargetFile` (absolute) |
+| Skill | tool `Skill`, name in `tool_input.skill` | `$name` tokens in `UserPromptSubmit.prompt` | tool `skill`, name in `args.name` | invisible (`/skill` injects a prompt, no tool event) |
+| Spawn | tool `Agent`, `tool_input.subagent_type` + `prompt` | tool `spawn_agent`, `tool_input.agent_type` + `message` | tool `task`, `args.subagent_type` + `args.prompt` | none (subagents have no on-disk definition) |
+| Shell (rung 5) | tool `Bash`, `tool_input.command` | tool `Bash`, `tool_input.command` | tool `bash`, `args.command` | tool `run_command`, `args.CommandLine` + `args.Cwd` |
+
+Two traps the table cannot show. Case: a runtime whose tool names are
+lower-cased will not match a case-SENSITIVE install matcher written for
+another runtime's capitalisation, and the hook then never fires at all, which
+looks identical to a disclaiming mapper from the outside. Path form: a payload
+whose path key is RELATIVE to the event root cannot go straight into
+`relativizeMarkdownPath` (its containment check is a string prefix), so it must
+be absolutized against that root first; the shared
+`scopeRelativeMarkdownPath` helper does both and is what an adapter should
+reach for.
+
+### Signal notes
 
 | Provider | skill | agent | command | notes |
 |---|---|---|---|---|
