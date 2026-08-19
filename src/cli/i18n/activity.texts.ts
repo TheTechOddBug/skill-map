@@ -65,6 +65,21 @@ export const ACTIVITY_TEXTS = {
     '   {{glyph}} self-test: skipped ({{detail}})\n',
   verifyFailed:
     '   {{glyph}} self-test: {{verdict}}, {{detail}}\n',
+  // Mapper digest (`--verify`, spec provider-activity.md §Mapper digest).
+  // Printed ONLY in the unambiguous case: events arrived from the runtime
+  // and the adapter resolved none of them. Disclaiming per se is
+  // contractual (a non-`.md` read, an unmapped tool), so a digest next to
+  // a non-zero `resolved` stays out of the human report and rides
+  // `--json` only.
+  digestHeader:
+    '   {{glyph}} mapper: {{received}} event(s) arrived, none mapped to a node\n',
+  digestShape:
+    '       {{count}}x {{outcome}}  {{label}}\n',
+  digestKeys:
+    '            keys: {{keys}}\n',
+  digestFooter:
+    'The runtime IS firing hooks and the adapter disclaimed every one. Compare the key names above against the payload vocabulary the provider adapter reads (spec/provider-activity.md, Per-provider signal notes).\n',
+
   // Printed once, after the report, whenever any provider failed. The
   // self-test cannot observe the runtime spawning the hook, so a green
   // run must never be read as proof of end-to-end wiring.

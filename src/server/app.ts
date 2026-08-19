@@ -119,6 +119,7 @@ import { registerProjectPreferencesRoute } from './routes/project-preferences.js
 import type { ActivityConversationStore } from './activity-conversations.js';
 import type { ActivityJournalService } from './activity-journal.js';
 import type { ActivityOwnerIndex } from './activity-owner-index.js';
+import type { ActivityDisclaimedStore } from './activity-disclaimed.js';
 import type { ActivityProbeStore } from './activity-probe.js';
 import type { ActivityStatsService } from './activity-stats.js';
 import type { AgentPresenceTracker } from './agent-presence.js';
@@ -127,6 +128,7 @@ import { registerActionsRoutes } from './routes/actions.js';
 import { CaptureLevelState } from './capture-level.js';
 import { registerActivityRoute } from './routes/activity.js';
 import { registerActivityCaptureRoutes } from './routes/activity-capture.js';
+import { registerActivityDisclaimedRoute } from './routes/activity-disclaimed.js';
 import { registerActivityProbeRoute } from './routes/activity-probe.js';
 import { registerActivitySessionsRoute } from './routes/activity-sessions.js';
 import { registerActivityDetailRoutes } from './routes/activity-detail.js';
@@ -475,6 +477,15 @@ export interface IAppDeps {
    */
   activityProbes: ActivityProbeStore;
   /**
+   * Boot-scoped mapper digest (see `activity-disclaimed.ts`). Same
+   * ownership shape as the nonce ring: instantiated by the composition
+   * root, threaded to the ingest route (which records) and the digest
+   * route (which reads back), never placed on `IRouteDeps`. Holds
+   * payload SCHEMA (key names plus the two vendor discriminators), never
+   * payload content.
+   */
+  activityDisclaimed: ActivityDisclaimedStore;
+  /**
    * Consent-gated conversation store (see `activity-conversations.ts`
    * for the custody contract). Instantiated ONLY by the composition
    * root; threaded ONLY to the activity routes (ingest, detail,
@@ -799,6 +810,7 @@ export function createApp(deps: IAppDeps): Hono {
     stats: deps.activityStats,
     owners: deps.activityOwners,
     probes: deps.activityProbes,
+    disclaimed: deps.activityDisclaimed,
     conversations: deps.activityConversations,
     journal: deps.activityJournal,
     captureLevel: deps.captureLevel,
@@ -809,6 +821,12 @@ export function createApp(deps: IAppDeps): Hono {
   // `sm activity status --verify` learns the fire-and-forget bridge
   // actually reached this server.
   registerActivityProbeRoute(app, { probes: deps.activityProbes });
+  // Mapper digest readback, `GET /api/activity/disclaimed` (spec
+  // §Mapper digest). Reports, per provider, how many events arrived and
+  // how many produced nothing, with the SHAPE of the ones that did not:
+  // the diagnostic the probe above cannot reach, because a probe never
+  // touches `mapEvent`.
+  registerActivityDisclaimedRoute(app, { disclaimed: deps.activityDisclaimed });
   // Session-journal wipe, `DELETE /api/activity/sessions` (spec
   // §Session journal · Deletion): files + open in-memory buffers in one
   // gesture, one `activity.sessions-clear` operations line.

@@ -50,7 +50,10 @@ import {
 } from '../../core/activity/install.js';
 import {
   isFailingVerdict,
+  readActivityDigest,
   verifyActivityWiring,
+  type IActivityDigest,
+  type IDigestShape,
   type IVerifyResult,
 } from '../../core/activity/verify.js';
 import { composeScanExtensions, loadPluginRuntime } from '../../core/runtime/plugin-runtime.js';
@@ -405,6 +408,15 @@ export class ActivityStatusCommand extends SmCommand {
       crashes on every invocation, a dead server, a stale
       \`serve.json\`). The probe never lights a node and never counts as
       an execution. Any failing verdict exits 1.
+
+      \`--verify\` also reads the MAPPER digest off the running server,
+      which is the half the probe structurally cannot reach (a probe is
+      answered before \`mapEvent\` runs, by contract). Each \`--json\`
+      entry gains \`digest: { received, resolved, shapes }\`; the human
+      report adds a warning block only when a provider received events
+      and resolved none, the unambiguous live-runtime / broken-mapper
+      case. The digest never changes the exit code: disclaiming is
+      contractual behaviour, not a failure.
     `,
     examples: [
       ['All providers', '$0 activity status'],
@@ -456,13 +468,16 @@ export class ActivityStatusCommand extends SmCommand {
     // The self-test EXECUTES the chain, so it runs once per target and
     // its verdicts feed both output modes and the exit code.
     const verdicts = this.verify ? await this.runSelfTests(ctx.cwd, targets) : null;
+    // Supplement, not a verdict: an unreachable server degrades to
+    // silence here because the self-test above already reports it.
+    const digests = this.verify ? await readActivityDigest(ctx.cwd) : null;
 
     // §Machine-readable output: `--json` puts the envelope on stdout and
     // nothing else; the human report keeps its exact per-provider lines.
     if (this.json) {
-      this.printer!.data(this.jsonEnvelope(targets, ctx.cwd, verdicts));
+      this.printer!.data(this.jsonEnvelope(targets, ctx.cwd, verdicts, digests));
     } else {
-      this.printReport(targets, ctx.cwd, verdicts, okGlyph, ansi);
+      this.printReport(targets, ctx.cwd, verdicts, digests, okGlyph, ansi);
     }
     return this.verifyExit(verdicts);
   }
@@ -472,6 +487,7 @@ export class ActivityStatusCommand extends SmCommand {
     targets: readonly IProvider[],
     cwd: string,
     verdicts: Map<string, IVerifyResult> | null,
+    digests: Map<string, IActivityDigest> | null,
   ): string {
     const providers = targets.map((provider) => {
       const entry: Record<string, unknown> = {
@@ -481,6 +497,16 @@ export class ActivityStatusCommand extends SmCommand {
       };
       const result = verdicts?.get(provider.id);
       if (result !== undefined) entry['verify'] = result;
+      // Machine consumers get the digest ALWAYS under `--verify`, not
+      // only in the loud case the human report filters down to.
+      const digest = digests?.get(provider.id);
+      if (digest !== undefined) {
+        entry['digest'] = {
+          received: digest.received,
+          resolved: digest.resolved,
+          shapes: digest.shapes,
+        };
+      }
       return entry;
     });
     return (
@@ -498,22 +524,88 @@ export class ActivityStatusCommand extends SmCommand {
     targets: readonly IProvider[],
     cwd: string,
     verdicts: Map<string, IVerifyResult> | null,
+    digests: Map<string, IActivityDigest> | null,
     okGlyph: string,
     ansi: { dim(s: string): string; red(s: string): string; yellow(s: string): string },
   ): void {
+    let anyDigest = false;
     for (const provider of targets) {
       this.printer!.data(this.statusLine(provider, cwd, okGlyph, ansi));
-      const result = verdicts?.get(provider.id);
-      // `not-installed` needs no self-test line: the state line right
-      // above already says it, and repeating it reads as noise. The
-      // `--json` entry still carries the verdict for machine consumers.
-      if (result !== undefined && result.verdict !== 'not-installed') {
-        this.printer!.data(this.verifyLine(result, okGlyph, ansi));
-      }
+      this.printVerifyLine(verdicts?.get(provider.id), okGlyph, ansi);
+      if (this.printDigest(digests?.get(provider.id), ansi)) anyDigest = true;
     }
     if (verdicts !== null && this.anyFailed(verdicts)) {
       this.printer!.info(ansi.dim(tx(ACTIVITY_TEXTS.verifyFooter, {})));
     }
+    if (anyDigest) {
+      this.printer!.info(ansi.dim(tx(ACTIVITY_TEXTS.digestFooter, {})));
+    }
+  }
+
+  /**
+   * The self-test line under one provider, when there is one to print.
+   * `not-installed` needs none: the state line right above already says
+   * it, and repeating it reads as noise. The `--json` entry still
+   * carries the verdict for machine consumers.
+   */
+  private printVerifyLine(
+    result: IVerifyResult | undefined,
+    okGlyph: string,
+    ansi: { dim(s: string): string; red(s: string): string },
+  ): void {
+    if (result === undefined || result.verdict === 'not-installed') return;
+    this.printer!.data(this.verifyLine(result, okGlyph, ansi));
+  }
+
+  /**
+   * The mapper-digest block under one provider, or nothing. Printed
+   * ONLY when the runtime demonstrably fired and the adapter resolved
+   * NOTHING: that is the one reading with no innocent explanation.
+   * Disclaiming alongside a non-zero `resolved` is the filter-first
+   * contract working, and printing it would train the operator to
+   * ignore the block. Returns whether anything was printed, so the
+   * footer appears at most once.
+   */
+  private printDigest(
+    digest: IActivityDigest | undefined,
+    ansi: { dim(s: string): string; yellow(s: string): string },
+  ): boolean {
+    if (digest === undefined || digest.received === 0 || digest.resolved > 0) return false;
+    this.printer!.data(
+      tx(ACTIVITY_TEXTS.digestHeader, {
+        glyph: ansi.yellow('!'),
+        received: String(digest.received),
+      }),
+    );
+    for (const shape of digest.shapes) {
+      this.printDigestShape(shape, ansi);
+    }
+    return true;
+  }
+
+  /**
+   * One disclaimed shape: the count and outcome, the vendor
+   * discriminators the payload named, and the key names the adapter was
+   * handed. All content-free by the digest's own contract; sanitized
+   * anyway because the two labels are vendor strings off the wire.
+   */
+  private printDigestShape(shape: IDigestShape, ansi: { dim(s: string): string }): void {
+    const parts: string[] = [];
+    if (shape.hook !== undefined) parts.push(sanitizeForTerminal(shape.hook));
+    if (shape.tool !== undefined) parts.push(`tool=${sanitizeForTerminal(shape.tool)}`);
+    this.printer!.data(
+      tx(ACTIVITY_TEXTS.digestShape, {
+        count: String(shape.count),
+        outcome: sanitizeForTerminal(shape.outcome),
+        label: parts.length > 0 ? parts.join('  ') : '(no discriminator)',
+      }),
+    );
+    if (shape.keys.length === 0) return;
+    this.printer!.data(
+      tx(ACTIVITY_TEXTS.digestKeys, {
+        keys: ansi.dim(shape.keys.map((k) => sanitizeForTerminal(k)).join(', ')),
+      }),
+    );
   }
 
   /** Run the self-test for every target, keyed by provider id. */

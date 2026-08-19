@@ -364,6 +364,97 @@ is authored by whoever wrote the repository: executing a string from it would
 turn a diagnostic verb into arbitrary code execution on checkout. The wired
 command is compared as TEXT and never run.
 
+## Mapper digest
+
+The self-test above proves the TRANSPORT half of the chain and, by the
+short-circuit it depends on, is structurally incapable of proving the MAPPING
+half: a probe never reaches `mapEvent`, so a Provider whose adapter disclaims
+every real payload passes the self-test with a green check. That gap is not
+hypothetical. An adapter cloned from another Provider inherits the donor's
+payload VOCABULARY (its tool names, its `tool_input` key names) as a hidden
+dependency; where the two runtimes disagree, the mapper is total by contract
+(§The `provider.activity` capability) and disclaims silently, so every
+checkpoint an operator can reach reports success while 100% of events are
+dropped. The install state reads `installed`, the bridge exits 0, the ingest
+answers `202`, and the map stays dark.
+
+The digest is the surface that disagrees. It costs no new capture: the ingest
+already computes the outcome that drives its observability log (§Ingest), and
+this accumulates the same discriminator instead of letting it die with the log
+line.
+
+**What is recorded (normative)**. On every ingest whose outcome is NOT
+`resolved`, the server MUST record one entry keyed by the event's SHAPE, and
+MUST count it per Provider alongside the total received and the total resolved.
+The shape is:
+
+- `outcome`, the ingest outcome verbatim (`no-provider`, `no-signals`,
+  `no-nodes`, `unresolved`).
+- `hook`, the hook-type discriminator, resolved exactly as the ingest log
+  resolves it.
+- `tool`, the invoking tool name when the payload names one.
+- `keys`, the KEY NAMES reachable in the payload, to a depth of two, as
+  dotted paths (`tool_input.path`, `toolCall.args.AbsolutePath`).
+
+Entries with an identical shape MUST collapse into one, carrying an occurrence
+count and the last arrival timestamp. The store is boot-scoped and bounded (at
+most 32 distinct shapes per server, oldest evicted); nothing persists, nothing
+broadcasts, and a digest entry never lights a node or counts as an execution.
+
+**Privacy (normative)**. The digest records SCHEMA, never CONTENT. No value of
+any payload field may be recorded except the two vendor discriminators the
+ingest log is already permitted to log (`hook` and `tool`), and those are
+sanitized and length-capped as it caps them. Key names are recorded, values are
+not; arrays are not descended into; the key count and each key's length are
+capped so a payload that keys an object by user data cannot turn the digest into
+a content channel. The digest is readable only over the loopback route below.
+
+### `GET /api/activity/disclaimed`
+
+Loopback-gated, no token (operator surface, same posture as the probe
+readback). Optional `provider=<id>` narrows the report to one Provider; an
+unknown id reports it with zero counters rather than erroring, because "this
+Provider has received nothing" is the answer the caller asked for. Returns:
+
+```json
+{
+  "providers": [
+    {
+      "id": "<provider-id>",
+      "received": 47,
+      "resolved": 0,
+      "shapes": [
+        {
+          "outcome": "no-signals",
+          "hook": "PreToolUse",
+          "tool": "read",
+          "keys": ["hook_event_name", "tool_name", "tool_input.path", "tool_input.offset"],
+          "count": 31,
+          "lastAt": 1755561600000
+        }
+      ]
+    }
+  ]
+}
+```
+
+`tool` is omitted when the payload names none; `shapes` is ordered by `count`
+descending. Read-only: reporting never clears the digest.
+
+**What the digest proves**. That events ARE arriving from the runtime (the one
+thing the self-test explicitly cannot establish, §Wiring self-test), and what
+the adapter did with them. A Provider reporting `received > 0` with
+`resolved: 0` has a live runtime and a broken mapper, and the recorded `keys`
+name the vocabulary the adapter was handed, which is the vocabulary it must be
+read against.
+
+**What it does NOT prove**. That a disclaimed shape is a DEFECT. Disclaiming is
+the contract for everything a Provider deliberately ignores: a non-`.md` read,
+a path outside the scope root, an unmapped tool. A digest with entries next to a
+non-zero `resolved` is a healthy adapter doing its filter-first job, which is
+why the CLI surfaces it only in the unambiguous case (below) and leaves the full
+report to `--json`.
+
 ## Install management over HTTP
 
 The same install / uninstall operations the CLI verbs expose (`sm activity

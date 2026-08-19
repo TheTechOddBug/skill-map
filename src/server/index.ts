@@ -85,6 +85,7 @@ import {
   isCaptureLevel,
 } from './capture-level.js';
 import { ActivityOwnerIndex } from './activity-owner-index.js';
+import { ActivityDisclaimedStore } from './activity-disclaimed.js';
 import { ActivityProbeStore } from './activity-probe.js';
 import { ActivityStatsService } from './activity-stats.js';
 import { AgentPresenceTracker } from './agent-presence.js';
@@ -219,6 +220,10 @@ export async function createServer(
   // Wiring self-test nonce ring (see `activity-probe.ts`): written by the
   // ingest when a probe arrives, read back by `GET /api/activity/probe`.
   const activityProbes = new ActivityProbeStore();
+  // Mapper digest (see `activity-disclaimed.ts`): the half the probe ring
+  // structurally cannot cover, fed the ingest outcome per event and read
+  // back by `GET /api/activity/disclaimed`.
+  const activityDisclaimed = new ActivityDisclaimedStore();
   const activityConversations = new ActivityConversationStore({
     enabled:
       readConfigValue<boolean>('activity.captureConversations', {
@@ -274,6 +279,7 @@ export async function createServer(
     activityStats,
     activityOwners,
     activityProbes,
+    activityDisclaimed,
     activityConversations,
     activityJournal,
     captureLevel,

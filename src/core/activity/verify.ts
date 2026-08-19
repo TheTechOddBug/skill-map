@@ -285,6 +285,64 @@ async function fetchProbe(target: IServeTarget, nonce: string): Promise<TProbeRe
 }
 
 /**
+ * One collapsed disclaimed shape as `GET /api/activity/disclaimed`
+ * reports it (`spec/provider-activity.md` §Mapper digest). Content-free
+ * by contract: two vendor discriminators plus key NAMES.
+ */
+export interface IDigestShape {
+  outcome: string;
+  hook?: string;
+  tool?: string;
+  keys: string[];
+  count: number;
+  lastAt: number;
+}
+
+/** Per-provider digest entry. */
+export interface IActivityDigest {
+  id: string;
+  received: number;
+  resolved: number;
+  shapes: IDigestShape[];
+}
+
+/**
+ * Read the mapper digest off the running server, keyed by provider id,
+ * or `null` when there is no reachable server to ask (no `serve.json`,
+ * nothing listening, an unparseable body). Null is deliberately NOT an
+ * error: the digest is a supplement to the self-test, which already
+ * reports `server-down` on its own, so a missing digest must degrade to
+ * silence rather than to a second failure line.
+ *
+ * Loopback route, no token: the digest is an operator surface, exactly
+ * like the probe readback.
+ */
+export async function readActivityDigest(cwd: string): Promise<Map<string, IActivityDigest> | null> {
+  const target = readServeTarget(cwd);
+  if (target === null) return null;
+  const entries = await fetchDigestEntries(target);
+  if (entries === null) return null;
+  const out = new Map<string, IActivityDigest>();
+  for (const entry of entries) {
+    if (typeof entry?.id === 'string' && entry.id.length > 0) out.set(entry.id, entry);
+  }
+  return out;
+}
+
+/** The raw `providers` array, or `null` for every unreachable / unusable answer. */
+async function fetchDigestEntries(target: IServeTarget): Promise<IActivityDigest[] | null> {
+  try {
+    const url = `http://${target.host}:${String(target.port)}/api/activity/disclaimed`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(READBACK_FETCH_TIMEOUT_MS) });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { providers?: unknown };
+    return Array.isArray(body.providers) ? (body.providers as IActivityDigest[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Host + port of the running server, or `null` when `serve.json` is
  * missing / unparseable / malformed. Deliberately narrow: the CLI only
  * needs to reach the readback endpoint, the TOKEN stays the bridge's

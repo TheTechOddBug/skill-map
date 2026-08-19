@@ -52,6 +52,7 @@ import type { CaptureLevelState } from '../capture-level.js';
 import type { ActivityConversationStore } from '../activity-conversations.js';
 import type { ActivityJournalService } from '../activity-journal.js';
 import type { ActivityOwnerIndex } from '../activity-owner-index.js';
+import type { ActivityDisclaimedStore } from '../activity-disclaimed.js';
 import { probeNonceOf, type ActivityProbeStore } from '../activity-probe.js';
 import type { ActivityStatsService } from '../activity-stats.js';
 import {
@@ -113,6 +114,13 @@ export interface IActivityRouteDeps extends IRouteDeps {
   activityToken: string;
   /** Boot-scoped self-test nonce ring (composition-root owned). */
   probes: ActivityProbeStore;
+  /**
+   * Boot-scoped mapper digest (composition-root owned, see
+   * `activity-disclaimed.ts`). Fed the SAME outcome that drives the
+   * observability log below, so the diagnostic survives the log line
+   * instead of dying with it.
+   */
+  disclaimed: ActivityDisclaimedStore;
   /** Boot-scoped execution-stats accumulator (composition-root owned). */
   stats: ActivityStatsService;
   /**
@@ -162,6 +170,10 @@ export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void
       owners: deps.owners,
     });
     logActivityIngest(body.provider, body.event, resolution);
+    // Same seam, same data: the log line is transient and needs
+    // `--log-level info` to be seen at all, the digest is queryable
+    // (spec/provider-activity.md, Mapper digest).
+    deps.disclaimed.record(body.provider, resolution.outcome, body.event);
     const { activity, spawns, reports } = resolution;
     broadcastActivity(deps, activity, body.provider);
     broadcastSpawns(deps, spawns, body.provider);
